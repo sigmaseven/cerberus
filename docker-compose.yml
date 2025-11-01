@@ -1,6 +1,18 @@
 version: '3.8'
 
 services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"      # Frontend web interface
+    depends_on:
+      - cerberus
+    networks:
+      - cerberus-net
+    restart: unless-stopped
+
   cerberus:
     build: .
     ports:
@@ -11,7 +23,7 @@ services:
       - "8080:8080"     # JSON HTTP/UDP
       - "8081:8081"     # API/Metrics
     volumes:
-      - ./config.json:/app/config.json:ro
+      - ./config.yaml:/app/config.yaml:ro
       - ./rules.json:/app/rules.json:ro
       - ./correlation_rules.json:/app/correlation_rules.json:ro
     environment:

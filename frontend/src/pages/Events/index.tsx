@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Box,
@@ -17,10 +18,30 @@ import { apiService } from '../../services/api';
 import { Event } from '../../types';
 
 function Events() {
-  const { data: events, isLoading, error } = useQuery({
+  const [newEvents, setNewEvents] = useState<Event[]>([]);
+
+  const { data: events, isLoading, error, refetch } = useQuery({
     queryKey: ['events'],
     queryFn: () => apiService.getEvents(100),
   });
+
+  useEffect(() => {
+    // Subscribe to real-time event updates
+    apiService.subscribeToRealtimeUpdates({
+      onEvent: (event: Event) => {
+        // Add new event to the beginning of the list
+        setNewEvents(prev => [event, ...prev.slice(0, 9)]); // Keep only last 10 new events
+
+        // Refetch events to get the latest data
+        refetch();
+      },
+    });
+
+    // Cleanup on unmount
+    return () => {
+      apiService.unsubscribeFromRealtimeUpdates();
+    };
+  }, [refetch]);
 
   if (isLoading) {
     return (
@@ -43,6 +64,14 @@ function Events() {
       <Typography variant="h4" gutterBottom>
         Security Events
       </Typography>
+
+      {newEvents.length > 0 && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          <Typography variant="body2">
+            📡 {newEvents.length} new event{newEvents.length !== 1 ? 's' : ''} received
+          </Typography>
+        </Alert>
+      )}
 
       <TableContainer component={Paper}>
         <Table>

@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import { Event, Alert, Rule, CorrelationRule, Action, DashboardStats, ChartData, ListenerStatus } from '../types';
+import websocketService, { WebSocketCallbacks } from './websocket';
 
 class ApiService {
   private api: AxiosInstance;
@@ -163,6 +164,19 @@ class ApiService {
   async getHealth(): Promise<{ status: string }> {
     const response = await this.api.get('/health');
     return response.data;
+  }
+
+  // WebSocket subscriptions
+  subscribeToRealtimeUpdates(callbacks: WebSocketCallbacks): void {
+    websocketService.subscribe(callbacks);
+  }
+
+  unsubscribeFromRealtimeUpdates(): void {
+    websocketService.unsubscribe();
+  }
+
+  isWebSocketConnected(): boolean {
+    return websocketService.isConnected();
   }
 }
 

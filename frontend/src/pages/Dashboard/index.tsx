@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Grid,
@@ -7,12 +8,15 @@ import {
   Box,
   Alert,
   CircularProgress,
+  Chip,
 } from '@mui/material';
 import {
   Event as EventIcon,
   Warning as WarningIcon,
   Rule as RuleIcon,
   HealthAndSafety as HealthIcon,
+  Wifi as WifiIcon,
+  WifiOff as WifiOffIcon,
 } from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { apiService } from '../../services/api';
@@ -49,6 +53,9 @@ const StatCard = ({
 );
 
 function Dashboard() {
+  const [realtimeStats, setRealtimeStats] = useState<DashboardStats | null>(null);
+  const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
+
   const { data: stats, isLoading: statsLoading, error: statsError } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: apiService.getDashboardStats,
@@ -60,6 +67,32 @@ function Dashboard() {
     queryFn: apiService.getChartData,
     refetchInterval: 30000,
   });
+
+  // Use real-time stats if available, otherwise fall back to polled data
+  const currentStats = realtimeStats || stats;
+
+  useEffect(() => {
+    // Subscribe to real-time updates
+    apiService.subscribeToRealtimeUpdates({
+      onDashboardStats: (stats: DashboardStats) => {
+        setRealtimeStats(stats);
+      },
+      onConnect: () => {
+        setIsWebSocketConnected(true);
+      },
+      onDisconnect: () => {
+        setIsWebSocketConnected(false);
+      },
+    });
+
+    // Check initial connection status
+    setIsWebSocketConnected(apiService.isWebSocketConnected());
+
+    // Cleanup on unmount
+    return () => {
+      apiService.unsubscribeFromRealtimeUpdates();
+    };
+  }, []);
 
   if (statsLoading || chartLoading) {
     return (
@@ -79,61 +112,80 @@ function Dashboard() {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
-        Dashboard
-      </Typography>
+      <Box sx={{
+        display: 'flex',
+        flexDirection: { xs: 'column', sm: 'row' },
+        justifyContent: { xs: 'flex-start', sm: 'space-between' },
+        alignItems: { xs: 'flex-start', sm: 'center' },
+        gap: { xs: 2, sm: 1 },
+        mb: 2
+      }}>
+        <Typography variant="h4" sx={{ mb: { xs: 0, sm: 0 } }}>
+          Dashboard
+        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: { xs: '100%', sm: 'auto' }, justifyContent: { xs: 'space-between', sm: 'flex-end' } }}>
+          <Chip
+            icon={isWebSocketConnected ? <WifiIcon /> : <WifiOffIcon />}
+            label={isWebSocketConnected ? 'Live' : 'Offline'}
+            color={isWebSocketConnected ? 'success' : 'default'}
+            size="small"
+            variant="outlined"
+          />
+        </Box>
+      </Box>
 
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
+      <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ mb: 4 }}>
+        <Grid item xs={6} sm={6} md={3}>
           <StatCard
             title="Total Events"
-            value={stats?.total_events || 0}
+            value={currentStats?.total_events || 0}
             icon={<EventIcon />}
             color="#1976d2"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={6} sm={6} md={3}>
           <StatCard
             title="Active Alerts"
-            value={stats?.active_alerts || 0}
+            value={currentStats?.active_alerts || 0}
             icon={<WarningIcon />}
             color="#f44336"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={6} sm={6} md={3}>
           <StatCard
             title="Rules Fired"
-            value={stats?.rules_fired || 0}
+            value={currentStats?.rules_fired || 0}
             icon={<RuleIcon />}
             color="#ff9800"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={6} sm={6} md={3}>
           <StatCard
             title="System Health"
-            value={stats?.system_health || 'Unknown'}
+            value={currentStats?.system_health || 'Unknown'}
             icon={<HealthIcon />}
             color="#4caf50"
           />
         </Grid>
       </Grid>
 
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={8}>
+      <Grid container spacing={{ xs: 2, sm: 3 }}>
+        <Grid item xs={12} lg={8}>
           <Card>
-            <CardContent>
+            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Typography variant="h6" gutterBottom>
                 Events Over Time
               </Typography>
-              <Box sx={{ height: 300 }}>
+              <Box sx={{ height: { xs: 250, sm: 300 } }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData || []}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis
                       dataKey="timestamp"
                       tickFormatter={(value) => new Date(value).toLocaleTimeString()}
+                      fontSize={12}
                     />
-                    <YAxis />
+                    <YAxis fontSize={12} />
                     <Tooltip
                       labelFormatter={(value) => new Date(value).toLocaleString()}
                     />
@@ -158,9 +210,9 @@ function Dashboard() {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} lg={4}>
           <Card>
-            <CardContent>
+            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Typography variant="h6" gutterBottom>
                 System Status
               </Typography>
@@ -174,7 +226,7 @@ function Dashboard() {
                       backgroundColor: '#4caf50',
                     }}
                   />
-                  <Typography>Events Ingest: 95%</Typography>
+                  <Typography variant="body2">Events Ingest: 95%</Typography>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Box
@@ -185,7 +237,7 @@ function Dashboard() {
                       backgroundColor: '#4caf50',
                     }}
                   />
-                  <Typography>Rules Engine: 100%</Typography>
+                  <Typography variant="body2">Rules Engine: 100%</Typography>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Box
@@ -196,7 +248,7 @@ function Dashboard() {
                       backgroundColor: '#4caf50',
                     }}
                   />
-                  <Typography>Database: OK</Typography>
+                  <Typography variant="body2">Database: OK</Typography>
                 </Box>
               </Box>
             </CardContent>

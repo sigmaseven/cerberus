@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './stores/auth';
 import { theme } from './theme';
 import Layout from './components/layout/Layout';
+import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Alerts from './pages/Alerts';
 import Events from './pages/Events';
@@ -35,6 +36,7 @@ function App() {
         <Router>
           <Box sx={{ display: 'flex', minHeight: '100vh' }}>
             <Routes>
+              <Route path="/login" element={<Login />} />
               <Route
                 path="/"
                 element={
@@ -52,7 +54,6 @@ function App() {
                 <Route path="actions" element={<Actions />} />
                 <Route path="listeners" element={<Listeners />} />
               </Route>
-              <Route path="/login" element={<div>Login Page (TODO)</div>} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Box>

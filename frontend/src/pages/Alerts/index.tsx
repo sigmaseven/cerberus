@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Box,
@@ -32,6 +32,7 @@ function Alerts() {
   const [filterSeverity, setFilterSeverity] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [newAlerts, setNewAlerts] = useState<AlertType[]>([]);
 
   const queryClient = useQueryClient();
 
@@ -40,6 +41,24 @@ function Alerts() {
     queryFn: apiService.getAlerts,
     refetchInterval: 10000, // Refresh every 10 seconds
   });
+
+  useEffect(() => {
+    // Subscribe to real-time alert updates
+    apiService.subscribeToRealtimeUpdates({
+      onAlert: (alert: AlertType) => {
+        // Add new alert to the beginning of the list
+        setNewAlerts(prev => [alert, ...prev.slice(0, 9)]); // Keep only last 10 new alerts
+
+        // Invalidate and refetch alerts to get the latest data
+        queryClient.invalidateQueries({ queryKey: ['alerts'] });
+      },
+    });
+
+    // Cleanup on unmount
+    return () => {
+      apiService.unsubscribeFromRealtimeUpdates();
+    };
+  }, [queryClient]);
 
   const acknowledgeMutation = useMutation({
     mutationFn: (alertId: string) => apiService.acknowledgeAlert(alertId),
@@ -121,6 +140,14 @@ function Alerts() {
       <Typography variant="h4" gutterBottom>
         Alerts Management
       </Typography>
+
+      {newAlerts.length > 0 && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          <Typography variant="body2">
+            🔔 {newAlerts.length} new alert{newAlerts.length !== 1 ? 's' : ''} received
+          </Typography>
+        </Alert>
+      )}
 
       <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
         <TextField

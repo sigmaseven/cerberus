@@ -14,6 +14,7 @@ import {
   ListItemIcon,
   ListItemText,
   useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -29,7 +30,7 @@ import {
 } from '@mui/icons-material';
 import { useUiStore } from '../../stores/ui';
 
-const drawerWidth = 240;
+const drawerWidth = 280;
 
 const navigationItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
@@ -43,6 +44,7 @@ const navigationItems = [
 
 function Layout() {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { sidebarOpen, setSidebarOpen } = useUiStore();
 
   const handleDrawerToggle = () => {
@@ -91,15 +93,38 @@ function Layout() {
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            Cerberus Security Information and Event Management
+          <Typography
+            variant="h6"
+            noWrap
+            component="div"
+            sx={{
+              flexGrow: 1,
+              display: { xs: 'none', sm: 'block' },
+              fontSize: { xs: '1rem', sm: '1.25rem' }
+            }}
+          >
+            Cerberus SIEM
           </Typography>
-          <IconButton color="inherit">
-            <ThemeIcon />
-          </IconButton>
-          <IconButton color="inherit">
-            <AccountIcon />
-          </IconButton>
+          <Typography
+            variant="h6"
+            noWrap
+            component="div"
+            sx={{
+              flexGrow: 1,
+              display: { xs: 'block', sm: 'none' },
+              fontSize: '1.1rem'
+            }}
+          >
+            Cerberus
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <IconButton color="inherit" size="small">
+              <ThemeIcon />
+            </IconButton>
+            <IconButton color="inherit" size="small">
+              <AccountIcon />
+            </IconButton>
+          </Box>
         </Toolbar>
       </AppBar>
       <Box
@@ -136,8 +161,9 @@ function Layout() {
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
+          p: { xs: 2, sm: 3 },
           width: { sm: `calc(100% - ${drawerWidth}px)` },
+          minHeight: '100vh',
         }}
       >
         <Toolbar />

@@ -29,7 +29,7 @@ WORKDIR /app
 COPY --from=builder /app/cerberus .
 
 # Copy config and rules files
-COPY --from=builder /app/config.json .
+COPY --from=builder /app/config.yaml .
 COPY --from=builder /app/rules.json .
 COPY --from=builder /app/correlation_rules.json .
 

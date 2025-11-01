@@ -37,28 +37,43 @@ export const theme = createTheme({
   typography: {
     fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
     h1: {
-      fontSize: '2.5rem',
+      fontSize: 'clamp(2rem, 5vw, 2.5rem)',
       fontWeight: 500,
     },
     h2: {
-      fontSize: '2rem',
+      fontSize: 'clamp(1.5rem, 4vw, 2rem)',
       fontWeight: 500,
     },
     h3: {
-      fontSize: '1.75rem',
+      fontSize: 'clamp(1.25rem, 3vw, 1.75rem)',
       fontWeight: 500,
     },
     h4: {
-      fontSize: '1.5rem',
+      fontSize: 'clamp(1.125rem, 2.5vw, 1.5rem)',
       fontWeight: 500,
     },
     h5: {
-      fontSize: '1.25rem',
+      fontSize: 'clamp(1rem, 2vw, 1.25rem)',
       fontWeight: 500,
     },
     h6: {
-      fontSize: '1rem',
+      fontSize: 'clamp(0.875rem, 1.5vw, 1rem)',
       fontWeight: 500,
+    },
+    body1: {
+      fontSize: 'clamp(0.875rem, 2vw, 1rem)',
+    },
+    body2: {
+      fontSize: 'clamp(0.75rem, 1.5vw, 0.875rem)',
+    },
+  },
+  breakpoints: {
+    values: {
+      xs: 0,
+      sm: 600,
+      md: 900,
+      lg: 1200,
+      xl: 1536,
     },
   },
   components: {
