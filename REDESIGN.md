@@ -17,27 +17,37 @@ This plan outlines a modern, responsive web frontend for the Cerberus SIEM syste
 
 ## Application Architecture
 
-### Component Structure
+The frontend will be developed as a separate application located in a `frontend/` directory at the root of the project, allowing for independent development, deployment, and scaling of the UI layer.
+
+### Project Structure
 ```
-src/
-├── components/
-│   ├── common/          # Reusable UI components (buttons, modals, tables)
-│   ├── layout/          # App shell, navigation, header
-│   └── forms/           # Form components for CRUD operations
-├── pages/               # Route-based page components
-│   ├── Dashboard/
-│   ├── Alerts/
-│   ├── Events/
-│   ├── Rules/
-│   ├── CorrelationRules/
-│   ├── Actions/
-│   └── Listeners/
-├── hooks/               # Custom React hooks
-├── services/            # API service layer
-├── stores/              # Zustand state stores
-├── types/               # TypeScript type definitions
-├── utils/               # Helper functions
-└── theme/               # MUI theme configuration
+frontend/
+├── public/              # Static assets (favicon, icons, etc.)
+├── src/
+│   ├── components/
+│   │   ├── common/      # Reusable UI components (buttons, modals, tables)
+│   │   ├── layout/      # App shell, navigation, header
+│   │   └── forms/       # Form components for CRUD operations
+│   ├── pages/           # Route-based page components
+│   │   ├── Dashboard/
+│   │   ├── Alerts/
+│   │   ├── Events/
+│   │   ├── Rules/
+│   │   ├── CorrelationRules/
+│   │   ├── Actions/
+│   │   └── Listeners/
+│   ├── hooks/           # Custom React hooks
+│   ├── services/        # API service layer
+│   ├── stores/          # Zustand state stores
+│   ├── types/           # TypeScript type definitions
+│   ├── utils/           # Helper functions
+│   └── theme/           # MUI theme configuration
+├── e2e/                 # Playwright end-to-end tests
+├── package.json
+├── vite.config.ts
+├── tsconfig.json
+├── playwright.config.ts
+└── tailwind.config.js   # If using Tailwind instead of Emotion
 ```
 
 ### State Management Strategy
@@ -231,7 +241,7 @@ src/
 
 ### Playwright Configuration
 ```javascript
-// playwright.config.ts
+// frontend/playwright.config.ts
 export default defineConfig({
   testDir: './e2e',
   use: {
