@@ -1,0 +1,22 @@
+{
+  "rules": [
+    {
+      "id": "brute_force",
+      "name": "Brute Force Attack Detection",
+      "description": "Detects multiple failed logins followed by a successful login",
+      "severity": "Critical",
+      "version": 1,
+      "window": 300000000000,
+      "conditions": [],
+      "sequence": ["user_login", "user_login", "user_login"],
+      "actions": [
+        {
+          "type": "webhook",
+          "config": {
+            "url": "https://example.com/alert"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+rules:
+  - id: "failed_login"
+    name: "Failed User Login"
+    description: "Detects multiple failed login attempts"
+    severity: "Warning"
+    version: "1.0"
+    enabled: true
+    conditions:
+      - field: "event_type"
+        operator: "equals"
+        value: "user_login"
+        logic: "AND"
+      - field: "fields.status"
+        operator: "equals"
+        value: "failure"
+        logic: "AND"
+    actions:
+      - type: "webhook"
+        config:
+          url: "https://example.com/webhook"
+  - id: "admin_access"
+    name: "Admin Access Detected"
+    description: "Alerts on admin user access"
+    severity: "Critical"
+    version: "1.0"
+    enabled: true
+    conditions:
+      - field: "fields.user"
+        operator: "contains"
+        value: "admin"
+        logic: "AND"
+    actions:
+      - type: "jira"
+        config:
+          project: "SEC"

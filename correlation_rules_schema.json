@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["Info", "Warning", "Critical", "Error"]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "window": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "sequence": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1
+          },
+          "conditions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "operator": {
+                  "type": "string",
+                  "enum": ["equals", "contains", "regex", "gt", "lt", "gte", "lte"]
+                },
+                "value": {},
+                "logic": {
+                  "type": "string",
+                  "enum": ["AND", "OR"]
+                }
+              },
+              "required": ["field", "operator", "value"]
+            }
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["webhook", "email", "jira", "slack"]
+                },
+                "config": {
+                  "type": "object"
+                }
+              },
+              "required": ["type", "config"]
+            }
+          }
+        },
+        "required": ["id", "name", "severity", "version", "window", "sequence", "actions"]
+      }
+    }
+  },
+  "required": ["rules"]
+}

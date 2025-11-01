@@ -1,0 +1,37 @@
+@import "tailwindcss";
+@import "./animations.css";
+
+@theme {
+  --color-background: #0d1117;
+  --color-background-secondary: #161b22;
+  --color-text-primary: #f0f6fc;
+  --color-text-secondary: #8b949e;
+  --color-accent-success: #238636;
+  --color-accent-warning: #d29922;
+  --color-accent-error: #da3633;
+  --color-accent-info: #00d4ff;
+  --color-border: #30363d;
+}
+
+@layer base {
+  html {
+    @apply bg-background text-text-primary;
+  }
+  body {
+    @apply font-sans antialiased;
+  }
+  pre {
+    @apply bg-background-secondary text-text-primary border border-border rounded p-2 overflow-x-auto;
+  }
+
+  /* Enhanced focus styles */
+  *:focus-visible {
+    outline: 2px solid #00d4ff;
+    outline-offset: 2px;
+  }
+
+  /* Smooth transitions for interactive elements */
+  button, a, input, textarea, select {
+    transition: all 150ms ease;
+  }
+}

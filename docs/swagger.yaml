@@ -1,0 +1,804 @@
+basePath: /
+definitions:
+  cerberus_core.Event:
+    properties:
+      event_id:
+        example: event-123
+        type: string
+      event_type:
+        example: user_login
+        type: string
+      fields:
+        additionalProperties: true
+        type: object
+      raw_data:
+        example: raw log data
+        type: string
+      severity:
+        example: info
+        type: string
+      source_format:
+        example: json
+        type: string
+      source_ip:
+        example: 192.168.1.100
+        type: string
+      timestamp:
+        example: "2023-10-31T12:00:00Z"
+        type: string
+    type: object
+  core.Action:
+    properties:
+      config:
+        type: object
+      id:
+        example: action-123
+        type: string
+      type:
+        description: webhook, jira, etc.
+        example: webhook
+        type: string
+    type: object
+  core.Alert:
+    properties:
+      alert_id:
+        example: alert-123
+        type: string
+      event:
+        $ref: '#/definitions/cerberus_core.Event'
+      event_id:
+        example: event-456
+        type: string
+      jira_ticket_id:
+        example: PROJ-123
+        type: string
+      rule_id:
+        example: failed_login
+        type: string
+      severity:
+        example: Warning
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/core.AlertStatus'
+        description: Pending, Acknowledged, Dismissed
+        example: Pending
+      timestamp:
+        example: "2023-10-31T12:00:00Z"
+        type: string
+    type: object
+  core.AlertStatus:
+    enum:
+    - Pending
+    - Acknowledged
+    - Dismissed
+    type: string
+    x-enum-varnames:
+    - AlertStatusPending
+    - AlertStatusAcknowledged
+    - AlertStatusDismissed
+  core.Condition:
+    properties:
+      field:
+        example: fields.status
+        type: string
+      logic:
+        description: AND, OR (for combining conditions)
+        example: AND
+        type: string
+      operator:
+        description: equals, not_equals, contains, starts_with, ends_with, regex,
+          greater_than, less_than, greater_than_or_equal, less_than_or_equal
+        example: equals
+        type: string
+      value:
+        example: failure
+        type: string
+    type: object
+  core.CorrelationRule:
+    properties:
+      actions:
+        items:
+          $ref: '#/definitions/core.Action'
+        type: array
+      conditions:
+        items:
+          $ref: '#/definitions/core.Condition'
+        type: array
+      description:
+        example: Detects multiple failed logins
+        type: string
+      id:
+        example: correlation_rule_1
+        type: string
+      name:
+        example: Brute Force Detection
+        type: string
+      sequence:
+        description: sequence of event types
+        example:
+        - user_login
+        - user_login
+        - user_login
+        items:
+          type: string
+        type: array
+      severity:
+        example: High
+        type: string
+      version:
+        example: 1
+        type: integer
+      window:
+        description: time window for correlation in nanoseconds
+        example: 300000000000
+        type: integer
+    type: object
+  core.Rule:
+    properties:
+      actions:
+        items:
+          $ref: '#/definitions/core.Action'
+        type: array
+      conditions:
+        items:
+          $ref: '#/definitions/core.Condition'
+        type: array
+      description:
+        example: Detects multiple failed login attempts
+        type: string
+      enabled:
+        example: true
+        type: boolean
+      id:
+        example: failed_login
+        type: string
+      name:
+        example: Failed User Login
+        type: string
+      severity:
+        example: Warning
+        type: string
+      version:
+        example: 1
+        type: integer
+    type: object
+host: localhost:8081
+info:
+  contact: {}
+  description: API for managing Cerberus SIEM events, alerts, rules, and configuration
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: http://swagger.io/terms/
+  title: Cerberus SIEM API
+  version: "1.0"
+paths:
+  /api/actions:
+    get:
+      consumes:
+      - application/json
+      description: Returns a list of all actions
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/core.Action'
+            type: array
+        "503":
+          description: Action storage not available
+          schema:
+            type: string
+      summary: Get actions
+      tags:
+      - actions
+    post:
+      consumes:
+      - application/json
+      description: Create a new action
+      parameters:
+      - description: Action object
+        in: body
+        name: action
+        required: true
+        schema:
+          $ref: '#/definitions/core.Action'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/core.Action'
+        "400":
+          description: Invalid JSON
+          schema:
+            type: string
+        "503":
+          description: Action storage not available
+          schema:
+            type: string
+      summary: Create action
+      tags:
+      - actions
+  /api/actions/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an action by ID
+      parameters:
+      - description: Action ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Action deleted
+          schema:
+            type: string
+        "404":
+          description: Action not found
+          schema:
+            type: string
+        "503":
+          description: Action storage not available
+          schema:
+            type: string
+      summary: Delete action
+      tags:
+      - actions
+    get:
+      consumes:
+      - application/json
+      description: Get an action by ID
+      parameters:
+      - description: Action ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/core.Action'
+        "404":
+          description: Action not found
+          schema:
+            type: string
+        "503":
+          description: Action storage not available
+          schema:
+            type: string
+      summary: Get action
+      tags:
+      - actions
+    put:
+      consumes:
+      - application/json
+      description: Update an existing action
+      parameters:
+      - description: Action ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Action object
+        in: body
+        name: action
+        required: true
+        schema:
+          $ref: '#/definitions/core.Action'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/core.Action'
+        "400":
+          description: Invalid JSON
+          schema:
+            type: string
+        "404":
+          description: Action not found
+          schema:
+            type: string
+        "503":
+          description: Action storage not available
+          schema:
+            type: string
+      summary: Update action
+      tags:
+      - actions
+  /api/alerts:
+    get:
+      consumes:
+      - application/json
+      description: Returns a list of alerts
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/core.Alert'
+            type: array
+      summary: Get alerts
+      tags:
+      - alerts
+  /api/alerts/{id}/acknowledge:
+    post:
+      consumes:
+      - application/json
+      description: Acknowledge an alert by ID
+      parameters:
+      - description: Alert ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Alert acknowledged
+          schema:
+            type: string
+        "404":
+          description: Alert not found
+          schema:
+            type: string
+        "503":
+          description: Alert storage not available
+          schema:
+            type: string
+      summary: Acknowledge alert
+      tags:
+      - alerts
+  /api/alerts/{id}/dismiss:
+    post:
+      consumes:
+      - application/json
+      description: Dismiss an alert by ID
+      parameters:
+      - description: Alert ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Alert not found
+          schema:
+            type: string
+        "503":
+          description: Alert storage not available
+          schema:
+            type: string
+      summary: Dismiss alert
+      tags:
+      - alerts
+  /api/correlation-rules:
+    get:
+      consumes:
+      - application/json
+      description: Returns a list of all correlation rules
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/core.CorrelationRule'
+            type: array
+        "503":
+          description: Correlation rule storage not available
+          schema:
+            type: string
+      summary: Get correlation rules
+      tags:
+      - correlation-rules
+    post:
+      consumes:
+      - application/json
+      description: Create a new correlation rule
+      parameters:
+      - description: Correlation Rule object
+        in: body
+        name: rule
+        required: true
+        schema:
+          $ref: '#/definitions/core.CorrelationRule'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/core.CorrelationRule'
+        "400":
+          description: Invalid JSON
+          schema:
+            type: string
+        "503":
+          description: Correlation rule storage not available
+          schema:
+            type: string
+      summary: Create correlation rule
+      tags:
+      - correlation-rules
+  /api/correlation-rules/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a correlation rule by ID
+      parameters:
+      - description: Correlation Rule ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Correlation rule deleted
+          schema:
+            type: string
+        "404":
+          description: Correlation rule not found
+          schema:
+            type: string
+        "503":
+          description: Correlation rule storage not available
+          schema:
+            type: string
+      summary: Delete correlation rule
+      tags:
+      - correlation-rules
+    get:
+      consumes:
+      - application/json
+      description: Get a correlation rule by ID
+      parameters:
+      - description: Correlation Rule ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/core.CorrelationRule'
+        "404":
+          description: Correlation rule not found
+          schema:
+            type: string
+        "503":
+          description: Correlation rule storage not available
+          schema:
+            type: string
+      summary: Get correlation rule
+      tags:
+      - correlation-rules
+    put:
+      consumes:
+      - application/json
+      description: Update an existing correlation rule
+      parameters:
+      - description: Correlation Rule ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Correlation Rule object
+        in: body
+        name: rule
+        required: true
+        schema:
+          $ref: '#/definitions/core.CorrelationRule'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/core.CorrelationRule'
+        "400":
+          description: Invalid JSON
+          schema:
+            type: string
+        "404":
+          description: Correlation rule not found
+          schema:
+            type: string
+        "503":
+          description: Correlation rule storage not available
+          schema:
+            type: string
+      summary: Update correlation rule
+      tags:
+      - correlation-rules
+  /api/dashboard:
+    get:
+      consumes:
+      - application/json
+      description: Returns dashboard statistics
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Storage not available
+          schema:
+            type: string
+      summary: Get dashboard stats
+      tags:
+      - dashboard
+  /api/dashboard/chart:
+    get:
+      consumes:
+      - application/json
+      description: Returns historical chart data for events and alerts
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+        "503":
+          description: Storage not available
+          schema:
+            type: string
+      summary: Get dashboard chart data
+      tags:
+      - dashboard
+  /api/events:
+    get:
+      consumes:
+      - application/json
+      description: Returns a list of recent security events
+      parameters:
+      - default: 100
+        description: Maximum number of results (1-1000)
+        in: query
+        maximum: 1000
+        minimum: 1
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/cerberus_core.Event'
+            type: array
+        "500":
+          description: Internal server error
+          schema:
+            type: string
+      summary: Get events
+      tags:
+      - events
+  /api/listeners:
+    get:
+      consumes:
+      - application/json
+      description: Returns information about active listeners
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get listeners
+      tags:
+      - system
+  /api/rules:
+    get:
+      consumes:
+      - application/json
+      description: Returns a list of all detection rules
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/core.Rule'
+            type: array
+        "503":
+          description: Rule storage not available
+          schema:
+            type: string
+      summary: Get rules
+      tags:
+      - rules
+    post:
+      consumes:
+      - application/json
+      description: Create a new detection rule
+      parameters:
+      - description: Rule object
+        in: body
+        name: rule
+        required: true
+        schema:
+          $ref: '#/definitions/core.Rule'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/core.Rule'
+        "400":
+          description: Invalid JSON
+          schema:
+            type: string
+        "503":
+          description: Rule storage not available
+          schema:
+            type: string
+      summary: Create rule
+      tags:
+      - rules
+  /api/rules/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a detection rule by ID
+      parameters:
+      - description: Rule ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Rule deleted
+          schema:
+            type: string
+        "404":
+          description: Rule not found
+          schema:
+            type: string
+        "503":
+          description: Rule storage not available
+          schema:
+            type: string
+      summary: Delete rule
+      tags:
+      - rules
+    put:
+      consumes:
+      - application/json
+      description: Update an existing detection rule
+      parameters:
+      - description: Rule ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Rule object
+        in: body
+        name: rule
+        required: true
+        schema:
+          $ref: '#/definitions/core.Rule'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/core.Rule'
+        "400":
+          description: Invalid JSON
+          schema:
+            type: string
+        "404":
+          description: Rule not found
+          schema:
+            type: string
+        "503":
+          description: Rule storage not available
+          schema:
+            type: string
+      summary: Update rule
+      tags:
+      - rules
+  /api/v1/rules/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get a detection rule by ID
+      parameters:
+      - description: Rule ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/core.Rule'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Get rule
+      tags:
+      - rules
+  /health:
+    get:
+      consumes:
+      - application/json
+      description: Returns the health status of the service
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Health check
+      tags:
+      - system
+securityDefinitions:
+  ApiKeyAuth:
+    description: Enter your API key
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

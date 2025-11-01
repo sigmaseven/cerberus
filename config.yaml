@@ -1,0 +1,31 @@
+mongodb:
+  enabled: true
+  uri: "mongodb://localhost:27017"
+  database: "cerberus"
+
+listeners:
+  syslog:
+    port: 514
+    host: "0.0.0.0"
+  cef:
+    port: 515
+    host: "0.0.0.0"
+  json:
+    port: 8080
+    host: "0.0.0.0"
+    tls: false
+
+api:
+  version: "v1"
+  port: 8081
+  tls: false
+
+rules:
+  file: "rules.json"
+
+correlation_rules:
+  file: "correlation_rules.json"
+
+retention:
+  events: 30
+  alerts: 90

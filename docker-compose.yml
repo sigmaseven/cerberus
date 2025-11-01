@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  cerberus:
+    build: .
+    ports:
+      - "514:514/udp"   # Syslog UDP
+      - "514:514/tcp"   # Syslog TCP
+      - "515:515/tcp"   # CEF TCP
+      - "515:515/udp"   # CEF UDP
+      - "8080:8080"     # JSON HTTP/UDP
+      - "8081:8081"     # API/Metrics
+    volumes:
+      - ./config.json:/app/config.json:ro
+      - ./rules.json:/app/rules.json:ro
+      - ./correlation_rules.json:/app/correlation_rules.json:ro
+    environment:
+      - CERBERUS_MONGODB_URI=mongodb://mongo:27017
+      - CERBERUS_MONGODB_DATABASE=cerberus
+    depends_on:
+      - mongo
+    networks:
+      - cerberus-net
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=cerberus
+    networks:
+      - cerberus-net
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
+
+networks:
+  cerberus-net:
+    driver: bridge

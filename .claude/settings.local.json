@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go get:*)",
+      "Bash(go install:*)",
+      "Bash(swag:*)",
+      "Bash(go build:*)",
+      "Bash(./cerberus.exe)",
+      "Bash(timeout /t 5)",
+      "Bash(curl:*)",
+      "Bash(powershell:*)",
+      "Bash(cmd /c test-api-suite.bat)",
+      "Bash(test-api-suite.bat)",
+      "Bash(python test-api-comprehensive.py:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
