@@ -83,6 +83,39 @@ frontend/
 - **Bottom Row**: Recent alerts table and system status indicators
 - **Sidebar**: Collapsible navigation menu with icons
 
+**Visual Mockup**:
+```
++-------------------------------------------------------------+
+| [≡] Cerberus SIEM                    [User] [Settings] [≡]  |
++-------------------------------------------------------------+
+| [Dashboard] [Alerts] [Events] [Rules] [Actions] [Listeners] |
++-------------------------------------------------------------+
+| +----------------+ +----------------+ +----------------+ +----------------+ |
+| | Total Events   | | Active Alerts  | | Rules Fired    | | System Health  | |
+| |     1,234      | |      12        | |      5         | |     Good       | |
+| +----------------+ +----------------+ +----------------+ +----------------+ |
++-------------------------------------------------------------+
+|                                                             |
+|   Events Over Time Chart                                    |
+|   [Line chart showing events per hour]                       |
+|                                                             |
+|   Alert Severity Distribution                                |
+|   [Pie chart: Critical 20%, High 30%, Medium 35%, Low 15%]  |
+|                                                             |
++-------------------------------------------------------------+
+| Recent Alerts Table                                         |
+| +----+--------+-------+----------+-------+--------+-------+ |
+| | ID | Severity| Status| Timestamp| Rule  | Source | Action| |
+| +----+--------+-------+----------+-------+--------+-------+ |
+| | A1 | Critical| Pending| 12:34:56| Rule1 | Server1| [Ack] | |
+| | A2 | High    | Ack'd  | 12:30:45| Rule2 | Server2| [View]| |
+| +----+--------+-------+----------+-------+--------+-------+ |
+|                                                             |
+| System Status Indicators:                                    |
+| [●] Events Ingest: 95%  [●] Rules Engine: 100%  [●] DB: OK |
++-------------------------------------------------------------+
+```
+
 **Key Features**:
 - Auto-refresh every 30 seconds
 - Clickable KPI cards to drill down
@@ -94,6 +127,47 @@ frontend/
 - **Left Panel**: Filterable table with columns (ID, Severity, Status, Timestamp, Rule)
 - **Right Panel**: Alert details with event data, acknowledge/dismiss actions
 - **Toolbar**: Bulk actions, search, severity filters, date range picker
+
+**Visual Mockup**:
+```
++-------------------------------------------------------------+
+| [≡] Cerberus SIEM                    [User] [Settings] [≡]  |
++-------------------------------------------------------------+
+| [Dashboard] [Alerts] [Events] [Rules] [Actions] [Listeners] |
++-------------------------------------------------------------+
+| [Bulk Ack] [Bulk Dismiss] [Export CSV] [Search: _________] |
+| [Severity: All ▼] [Status: All ▼] [Date: ____ to ____]     |
++-------------------------------------------------------------+
+| ID | Severity | Status  | Timestamp | Rule  | Source | Act |
++----+----------+---------+-----------+-------+--------+-----+
+| A1 | Critical | Pending | 12:34:56  | Rule1 | Srv1   |[V] |
+| A2 | High     | Ack'd   | 12:30:45  | Rule2 | Srv2   |[V] |
+| A3 | Medium   | Pending | 12:25:33  | Rule3 | Srv3   |[V] |
+| A4 | Low      | Dismiss | 12:20:12  | Rule4 | Srv4   |[V] |
++----+----------+---------+-----------+-------+--------+-----+
+|                                                             |
+|                        Alert Details                        |
+| +---------------------------------------------------------+ |
+| | Alert ID: A1                                            | |
+| | Severity: Critical                                      | |
+| | Status: Pending                                         | |
+| | Timestamp: 2023-10-31 12:34:56                          | |
+| | Rule: Failed Login Attempts                             | |
+| | Source: 192.168.1.100                                    | |
+| |                                                         | |
+| | Event Data:                                             | |
+| | {                                                       | |
+| |   "event_type": "user_login",                           | |
+| |   "fields": {                                           | |
+| |     "status": "failure",                                | |
+| |     "user": "admin"                                     | |
+| |   }                                                     | |
+| | }                                                       | |
+| |                                                         | |
+| | [Acknowledge] [Dismiss] [View Full Event]               | |
+| +---------------------------------------------------------+ |
++-------------------------------------------------------------+
+```
 
 **Key Features**:
 - Real-time status updates
@@ -107,6 +181,50 @@ frontend/
 - **Create/Edit Modal**: Multi-step form with condition builder
 - **Condition Builder**: Visual interface for adding field-operator-value conditions
 
+**Visual Mockup**:
+```
++-------------------------------------------------------------+
+| [≡] Cerberus SIEM                    [User] [Settings] [≡]  |
++-------------------------------------------------------------+
+| [Dashboard] [Alerts] [Events] [Rules] [Actions] [Listeners] |
++-------------------------------------------------------------+
+| [Create Rule] [Import] [Export] [Search: _______________]  |
++-------------------------------------------------------------+
+| Name | Description | Severity | Enabled | Actions          |
++------+-------------+----------+---------+------------------+
+| Failed Login | Detect failed logins | Warning | [✓] | [Edit] [Delete] |
+| Admin Access | Admin user access    | Critical| [✓] | [Edit] [Delete] |
+| Suspicious IP| Known bad IPs        | High    | [ ] | [Edit] [Delete] |
++------+-------------+----------+---------+------------------+
+|                                                             |
+|                Create/Edit Rule Modal                       |
+| +---------------------------------------------------------+ |
+| | Rule Name: ____________________________________________ | |
+| | Description: __________________________________________ | |
+| | Severity: [Warning ▼]                                   | |
+| | Enabled: [✓]                                            | |
+| |                                                         | |
+| | Conditions:                                             | |
+| | +-----------------------------------------------------+ | |
+| | | Field: [event_type ▼] Op: [equals ▼] Value: login | | |
+| | | [AND ▼]                                              | |
+| | | Field: [fields.status ▼] Op: [equals ▼] Value: fail| | |
+| | | [Add Condition] [Remove]                             | |
+| | +-----------------------------------------------------+ | |
+| |                                                         | |
+| | Actions:                                                | |
+| | +-----------------------------------------------------+ | |
+| | | Type: [webhook ▼]                                    | |
+| | | URL: ______________________________________________ | |
+| | | [Add Action] [Remove]                                | |
+| | +-----------------------------------------------------+ | |
+| |                                                         | |
+| | JSON Preview: [Show]                                    | |
+| | [Test Rule] [Save] [Cancel]                             | |
+| +---------------------------------------------------------+ |
++-------------------------------------------------------------+
+```
+
 **Key Features**:
 - Drag-and-drop condition ordering
 - JSON preview/validation
@@ -118,20 +236,169 @@ frontend/
 - **Sequence Builder**: Timeline view showing event sequence with time windows
 - **Condition Editor**: Advanced multi-condition builder
 
+**Visual Mockup**:
+```
++-------------------------------------------------------------+
+| [≡] Cerberus SIEM                    [User] [Settings] [≡]  |
++-------------------------------------------------------------+
+| [Dashboard] [Alerts] [Events] [Rules] [Actions] [Listeners] |
++-------------------------------------------------------------+
+| [Create Correlation Rule] [Search: _____________________]  |
++-------------------------------------------------------------+
+| Name | Sequence | Window | Actions                        |
++------+----------+--------+--------------------------------+
+| Brute Force | login→login→login | 5min | [Edit] [Delete]   |
++------+----------+--------+--------------------------------+
+|                                                             |
+|            Sequence Builder                                 |
+| +---------------------------------------------------------+ |
+| | Time Window: [300 ▼] seconds                             | |
+| |                                                         | |
+| | Sequence:                                               | |
+| | [Event 1: user_login ▼] → [Event 2: user_login ▼] → ... | |
+| |                                                         | |
+| | Timeline:                                               | |
+| | 0s ──── 60s ──── 120s ──── 180s ──── 240s ──── 300s    | |
+| | [●]     [●]     [●]                                     | |
+| |                                                         | |
+| | Conditions:                                             | |
+| | Field: fields.status = failure                          | |
+| | [Add Condition]                                         | |
+| |                                                         | |
+| | [Save] [Cancel]                                         | |
+| +---------------------------------------------------------+ |
++-------------------------------------------------------------+
+```
+
 #### 5. Actions Configuration Page
 **Layout**: Card-based grid with action type templates
 - **Action Cards**: Pre-configured templates for webhook, Jira, Slack, email
 - **Configuration Modal**: Type-specific form fields with validation
+
+**Visual Mockup**:
+```
++-------------------------------------------------------------+
+| [≡] Cerberus SIEM                    [User] [Settings] [≡]  |
++-------------------------------------------------------------+
+| [Dashboard] [Alerts] [Events] [Rules] [Actions] [Listeners] |
++-------------------------------------------------------------+
+| [Create Action] [Search: _______________________________]  |
++-------------------------------------------------------------+
+| +----------------+ +----------------+ +----------------+   |
+| |   Webhook      | |     Jira       | |    Slack       |   |
+| |   [Configure]  | |   [Configure]  | |  [Configure]   |   |
+| | Action ID: W1  | | Action ID: J1  | | Action ID: S1  |   |
+| +----------------+ +----------------+ +----------------+   |
+|                                                             |
+| +----------------+                                          |
+| |    Email       |                                          |
+| |  [Configure]   |                                          |
+| | Action ID: E1  |                                          |
+| +----------------+                                          |
++-------------------------------------------------------------+
+|                                                             |
+|                Configure Webhook Action                     |
+| +---------------------------------------------------------+ |
+| | Action Name: __________________________________________ | |
+| | Type: Webhook                                           | |
+| | URL: https://_________________________________________ | |
+| | Method: [POST ▼]                                        | |
+| | Headers:                                                | |
+| | Key: Authorization Value: Bearer _____________________ | |
+| | [Add Header]                                            | |
+| |                                                         | |
+| | [Test Action] [Save] [Cancel]                           | |
+| +---------------------------------------------------------+ |
++-------------------------------------------------------------+
+```
 
 #### 6. Events Viewer Page
 **Layout**: Paginated table with advanced filtering
 - **Filters**: Date range, event type, source IP, severity
 - **Details Modal**: Full event JSON with syntax highlighting
 
+**Visual Mockup**:
+```
++-------------------------------------------------------------+
+| [≡] Cerberus SIEM                    [User] [Settings] [≡]  |
++-------------------------------------------------------------+
+| [Dashboard] [Alerts] [Events] [Rules] [Actions] [Listeners] |
++-------------------------------------------------------------+
+| Date: [____] to [____] Event Type: [All ▼] Severity: [All ▼] |
+| Source IP: [___________] Search: [_______________________] |
+| [Apply Filters] [Clear] [Export]                           |
++-------------------------------------------------------------+
+| Timestamp | Event Type | Severity | Source IP | Raw Data   |
++-----------+------------+----------+-----------+------------+
+| 12:34:56  | user_login | info     | 192.1.1.1 | {JSON...}  |
+| 12:33:45  | file_access| warning  | 192.1.1.2 | {JSON...}  |
+| 12:32:34  | admin_cmd  | critical | 192.1.1.3 | {JSON...}  |
++-----------+------------+----------+-----------+------------+
+| [Previous] [1] [2] [3] ... [10] [Next] (1-100 of 1,234)    |
+|                                                             |
+|                Event Details Modal                          |
+| +---------------------------------------------------------+ |
+| | Event ID: evt-123                                        | |
+| | Timestamp: 2023-10-31 12:34:56                           | |
+| | Event Type: user_login                                   | |
+| | Severity: info                                           | |
+| | Source: 192.168.1.100                                    | |
+| |                                                         | |
+| | Raw JSON:                                               | |
+| | {                                                       | |
+| |   "event_id": "evt-123",                                | |
+| |   "event_type": "user_login",                           | |
+| |   "fields": {                                           | |
+| |     "user": "john",                                     | |
+| |     "status": "success"                                 | |
+| |   },                                                    | |
+| |   "timestamp": "2023-10-31T12:34:56Z"                   | |
+| | }                                                       | |
+| |                                                         | |
+| | [Close]                                                 | |
+| +---------------------------------------------------------+ |
++-------------------------------------------------------------+
+```
+
 #### 7. Listeners Status Page
 **Layout**: Status dashboard for active listeners
 - **Listener Cards**: One card per listener type showing port, status, throughput
 - **Configuration View**: Read-only display of current settings
+
+**Visual Mockup**:
+```
++-------------------------------------------------------------+
+| [≡] Cerberus SIEM                    [User] [Settings] [≡]  |
++-------------------------------------------------------------+
+| [Dashboard] [Alerts] [Events] [Rules] [Actions] [Listeners] |
++-------------------------------------------------------------+
+| Listener Status Dashboard                                   |
++-------------------------------------------------------------+
+| +----------------+ +----------------+ +----------------+   |
+| |   Syslog       | |     CEF        | |    JSON        |   |
+| |   [●] Active   | |   [●] Active   | |  [●] Active    |   |
+| | Port: 514      | | Port: 515      | | Port: 8080     |   |
+| | Events/min: 45 | | Events/min: 23 | | Events/min: 67 |   |
+| | Errors: 0      | | Errors: 1      | | Errors: 0      |   |
+| +----------------+ +----------------+ +----------------+   |
+|                                                             |
+| Current Configuration:                                      |
+| +---------------------------------------------------------+ |
+| | listeners:                                              | |
+| |   syslog:                                               | |
+| |     port: 514                                           | |
+| |     host: "0.0.0.0"                                     | |
+| |   cef:                                                  | |
+| |     port: 515                                           | |
+| |     host: "0.0.0.0"                                     | |
+| |   json:                                                 | |
+| |     port: 8080                                          | |
+| |     host: "0.0.0.0"                                     | |
+| |     tls: false                                          | |
+| |   skip_on_error: false                                  | |
+| +---------------------------------------------------------+ |
++-------------------------------------------------------------+
+```
 
 ## Functional Requirements
 
