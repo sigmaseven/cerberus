@@ -56,42 +56,45 @@ function Dashboard() {
   const [realtimeStats, setRealtimeStats] = useState<DashboardStats | null>(null);
   const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
 
+  // Fetch dashboard stats from API
   const { data: stats, isLoading: statsLoading, error: statsError } = useQuery({
-    queryKey: ['dashboard-stats'],
-    queryFn: apiService.getDashboardStats,
-    refetchInterval: 30000, // Refresh every 30 seconds
+    queryKey: ['dashboardStats'],
+    queryFn: () => apiService.getDashboardStats(),
+    refetchInterval: 5000, // Poll every 5 seconds
   });
 
+  // Fetch chart data from API
   const { data: chartData, isLoading: chartLoading, error: chartError } = useQuery({
-    queryKey: ['chart-data'],
-    queryFn: apiService.getChartData,
-    refetchInterval: 30000,
+    queryKey: ['chartData'],
+    queryFn: () => apiService.getChartData(),
+    refetchInterval: 5000,
   });
 
   // Use real-time stats if available, otherwise fall back to polled data
   const currentStats = realtimeStats || stats;
 
+  // Setup websocket for real-time updates
+  // TODO: Re-enable when backend WebSocket endpoint (/ws) is implemented
   useEffect(() => {
-    // Subscribe to real-time updates
-    apiService.subscribeToRealtimeUpdates({
-      onDashboardStats: (stats: DashboardStats) => {
-        setRealtimeStats(stats);
-      },
-      onConnect: () => {
-        setIsWebSocketConnected(true);
-      },
-      onDisconnect: () => {
-        setIsWebSocketConnected(false);
-      },
-    });
+    // Temporarily disabled - backend /ws endpoint not yet implemented
+    // The dashboard uses polling (5s intervals) as fallback
+    // apiService.subscribeToRealtimeUpdates({
+    //   onNewEvent: (event) => {
+    //     // Handle new event if needed
+    //   },
+    //   onNewAlert: (alert) => {
+    //     // Handle new alert if needed
+    //   },
+    //   onStatsUpdate: (newStats) => {
+    //     setRealtimeStats(newStats);
+    //   },
+    // });
 
-    // Check initial connection status
-    setIsWebSocketConnected(apiService.isWebSocketConnected());
+    // setIsWebSocketConnected(apiService.isWebSocketConnected());
 
-    // Cleanup on unmount
-    return () => {
-      apiService.unsubscribeFromRealtimeUpdates();
-    };
+    // return () => {
+    //   apiService.unsubscribeFromRealtimeUpdates();
+    // };
   }, []);
 
   if (statsLoading || chartLoading) {
@@ -120,7 +123,7 @@ function Dashboard() {
         gap: { xs: 2, sm: 1 },
         mb: 2
       }}>
-        <Typography variant="h4" sx={{ mb: { xs: 0, sm: 0 } }}>
+        <Typography variant="h4" component="h1" sx={{ mb: { xs: 0, sm: 0 } }}>
           Dashboard
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: { xs: '100%', sm: 'auto' }, justifyContent: { xs: 'space-between', sm: 'flex-end' } }}>

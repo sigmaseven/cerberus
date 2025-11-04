@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useState, useEffect } from 'react';
+import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
@@ -27,20 +27,19 @@ import {
   Add as AddIcon,
   Delete as DeleteIcon,
   ExpandMore as ExpandMoreIcon,
-  Timeline as TimelineIcon,
 } from '@mui/icons-material';
 import { CorrelationRule, Condition, Action } from '../../types';
 
 const conditionSchema = z.object({
   field: z.string().min(1, 'Field is required'),
   operator: z.string().min(1, 'Operator is required'),
-  value: z.string().min(1, 'Value is required'),
+  value: z.union([z.string(), z.number()]).refine(val => val !== '' && val != null, { message: 'Value is required' }),
   logic: z.enum(['AND', 'OR']),
 });
 
 const actionSchema = z.object({
   type: z.string().min(1, 'Action type is required'),
-  config: z.record(z.any()),
+  config: z.union([z.string(), z.record(z.any())]),
 });
 
 const correlationRuleFormSchema = z.object({
@@ -48,10 +47,10 @@ const correlationRuleFormSchema = z.object({
   description: z.string().min(1, 'Description is required'),
   severity: z.enum(['Low', 'Medium', 'High', 'Critical']),
   version: z.number().min(1),
-  window: z.number().min(1000, 'Window must be at least 1 second'),
+  window: z.number().min(1, 'Window must be at least 1 second'),
   sequence: z.array(z.string()).min(2, 'At least 2 events required in sequence'),
   conditions: z.array(conditionSchema).optional(),
-  actions: z.array(actionSchema).min(1, 'At least one action is required'),
+  actions: z.array(actionSchema).optional(),
 });
 
 type CorrelationRuleFormData = z.infer<typeof correlationRuleFormSchema>;
@@ -122,6 +121,7 @@ export function CorrelationRuleForm({ open, onClose, onSubmit, initialData, titl
     handleSubmit,
     watch,
     setValue,
+    reset,
     formState: { errors },
   } = useForm<CorrelationRuleFormData>({
     resolver: zodResolver(correlationRuleFormSchema),
@@ -133,11 +133,42 @@ export function CorrelationRuleForm({ open, onClose, onSubmit, initialData, titl
       window: initialData?.window ? initialData.window / 1000000 : 300, // Convert to seconds
       sequence: initialData?.sequence || ['user_login', 'user_login'],
       conditions: initialData?.conditions || [],
-      actions: initialData?.actions || [
-        { type: 'webhook', config: { url: '' } },
-      ],
+      actions: initialData?.actions?.map((action) => ({
+        ...action,
+        config: typeof action.config === 'object'
+          ? JSON.stringify(action.config, null, 2)
+          : action.config,
+      })) || [],
     },
   });
+
+  // Reset form when initialData changes or dialog opens
+  useEffect(() => {
+    if (open) {
+      reset({
+        name: initialData?.name || '',
+        description: initialData?.description || '',
+        severity: initialData?.severity || 'High',
+        version: initialData?.version || 1,
+        window: initialData?.window ? initialData.window / 1000000 : 300,
+        sequence: initialData?.sequence || ['user_login', 'user_login'],
+        conditions: (initialData?.conditions && initialData.conditions.length > 0)
+          ? initialData.conditions.map(c => ({
+              field: c.field || 'event_type',
+              operator: c.operator || 'equals',
+              value: c.value !== null && c.value !== undefined ? c.value : '',
+              logic: c.logic || 'AND',
+            }))
+          : [],
+        actions: initialData?.actions?.map((action) => ({
+          ...action,
+          config: typeof action.config === 'object'
+            ? JSON.stringify(action.config, null, 2)
+            : action.config,
+        })) || [],
+      });
+    }
+  }, [open, initialData, reset]);
 
   const {
     fields: sequenceFields,
@@ -170,13 +201,23 @@ export function CorrelationRuleForm({ open, onClose, onSubmit, initialData, titl
   const watchedWindow = watch('window');
 
   const handleFormSubmit = (data: CorrelationRuleFormData) => {
-    // Convert window from seconds to nanoseconds
-    const submitData = {
-      ...data,
-      window: data.window * 1000000,
-    };
-    onSubmit(submitData);
-    onClose();
+    try {
+      // Parse action configs from JSON strings to objects and convert window to nanoseconds
+      const processedData = {
+        ...data,
+        window: data.window * 1000000,
+        actions: data.actions?.map((action) => ({
+          ...action,
+          config: typeof action.config === 'string'
+            ? JSON.parse(action.config)
+            : action.config,
+        })) || [],
+      };
+      onSubmit(processedData);
+    } catch (error) {
+      console.error('Failed to parse action configuration:', error);
+      alert('Invalid JSON in action configuration. Please check your input.');
+    }
   };
 
   const showJsonPreview = () => {
@@ -204,7 +245,7 @@ export function CorrelationRuleForm({ open, onClose, onSubmit, initialData, titl
   const addAction = () => {
     appendAction({
       type: 'webhook',
-      config: { url: '' },
+      config: JSON.stringify({ url: '' }, null, 2),
     });
   };
 
@@ -215,55 +256,50 @@ export function CorrelationRuleForm({ open, onClose, onSubmit, initialData, titl
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>{title}</DialogTitle>
-      <DialogContent>
+      <DialogContent dividers>
         <Box component="form" sx={{ mt: 2 }}>
-          <Grid container spacing={3}>
-            <Grid item xs={12} sm={8}>
-              <TextField
-                fullWidth
-                label="Rule Name"
-                {...register('name')}
-                error={!!errors.name}
-                helperText={errors.name?.message}
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', mb: 2 }}>
+            <TextField
+              sx={{ flex: 1 }}
+              label="Rule Name"
+              {...register('name')}
+              error={!!errors.name}
+              helperText={errors.name?.message}
+            />
+            <FormControl sx={{ minWidth: 120 }}>
+              <InputLabel>Severity</InputLabel>
+              <Controller
+                name="severity"
+                control={control}
+                render={({ field }) => (
+                  <Select {...field}>
+                    <MenuItem value="Low">Low</MenuItem>
+                    <MenuItem value="Medium">Medium</MenuItem>
+                    <MenuItem value="High">High</MenuItem>
+                    <MenuItem value="Critical">Critical</MenuItem>
+                  </Select>
+                )}
               />
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <FormControl fullWidth>
-                <InputLabel>Severity</InputLabel>
-                <Select {...register('severity')} defaultValue="High">
-                  <MenuItem value="Low">Low</MenuItem>
-                  <MenuItem value="Medium">Medium</MenuItem>
-                  <MenuItem value="High">High</MenuItem>
-                  <MenuItem value="Critical">Critical</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                multiline
-                rows={2}
-                label="Description"
-                {...register('description')}
-                error={!!errors.description}
-                helperText={errors.description?.message}
-              />
-            </Grid>
-          </Grid>
+            </FormControl>
+          </Box>
+          <TextField
+            fullWidth
+            multiline
+            rows={2}
+            label="Description"
+            {...register('description')}
+            error={!!errors.description}
+            helperText={errors.description?.message}
+            sx={{ mb: 3 }}
+          />
 
           <Accordion sx={{ mt: 3 }}>
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography variant="h6">
-                <TimelineIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                Event Sequence ({sequenceFields.length} events)
-              </Typography>
+              <Typography variant="h6">Event Sequence ({sequenceFields.length})</Typography>
             </AccordionSummary>
             <AccordionDetails>
-              <Typography variant="body2" color="textSecondary" gutterBottom>
-                Define the sequence of events that must occur within the time window to trigger this rule.
-              </Typography>
 
               <Box sx={{ my: 2 }}>
                 <Typography gutterBottom>Time Window: {formatWindowLabel(watchedWindow)}</Typography>
@@ -331,12 +367,9 @@ export function CorrelationRuleForm({ open, onClose, onSubmit, initialData, titl
 
           <Accordion sx={{ mt: 2 }}>
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography variant="h6">Additional Conditions ({conditionFields.length})</Typography>
+              <Typography variant="h6">Conditions ({conditionFields.length})</Typography>
             </AccordionSummary>
             <AccordionDetails>
-              <Typography variant="body2" color="textSecondary" gutterBottom>
-                Optional conditions to apply to the triggering event.
-              </Typography>
 
               {conditionFields.map((field, index) => (
                 <Box key={field.id} sx={{ mb: 2, p: 2, border: '1px solid #333', borderRadius: 1 }}>
@@ -344,34 +377,52 @@ export function CorrelationRuleForm({ open, onClose, onSubmit, initialData, titl
                     <Grid item xs={12} sm={3}>
                       <FormControl fullWidth size="small">
                         <InputLabel>Field</InputLabel>
-                        <Select {...register(`conditions.${index}.field`)} defaultValue="event_type">
-                          {commonFields.map((fieldName) => (
-                            <MenuItem key={fieldName} value={fieldName}>
-                              {fieldName}
-                            </MenuItem>
-                          ))}
-                        </Select>
+                        <Controller
+                          name={`conditions.${index}.field`}
+                          control={control}
+                          render={({ field }) => (
+                            <Select {...field}>
+                              {commonFields.map((fieldName) => (
+                                <MenuItem key={fieldName} value={fieldName}>
+                                  {fieldName}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          )}
+                        />
                       </FormControl>
                     </Grid>
                     <Grid item xs={12} sm={2}>
                       <FormControl fullWidth size="small">
                         <InputLabel>Logic</InputLabel>
-                        <Select {...register(`conditions.${index}.logic`)} defaultValue="AND">
-                          <MenuItem value="AND">AND</MenuItem>
-                          <MenuItem value="OR">OR</MenuItem>
-                        </Select>
+                        <Controller
+                          name={`conditions.${index}.logic`}
+                          control={control}
+                          render={({ field }) => (
+                            <Select {...field}>
+                              <MenuItem value="AND">AND</MenuItem>
+                              <MenuItem value="OR">OR</MenuItem>
+                            </Select>
+                          )}
+                        />
                       </FormControl>
                     </Grid>
                     <Grid item xs={12} sm={3}>
                       <FormControl fullWidth size="small">
                         <InputLabel>Operator</InputLabel>
-                        <Select {...register(`conditions.${index}.operator`)} defaultValue="equals">
-                          {operators.map((op) => (
-                            <MenuItem key={op.value} value={op.value}>
-                              {op.label}
-                            </MenuItem>
-                          ))}
-                        </Select>
+                        <Controller
+                          name={`conditions.${index}.operator`}
+                          control={control}
+                          render={({ field }) => (
+                            <Select {...field}>
+                              {operators.map((op) => (
+                                <MenuItem key={op.value} value={op.value}>
+                                  {op.label}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          )}
+                        />
                       </FormControl>
                     </Grid>
                     <Grid item xs={12} sm={3}>
@@ -416,13 +467,19 @@ export function CorrelationRuleForm({ open, onClose, onSubmit, initialData, titl
                     <Grid item xs={12} sm={4}>
                       <FormControl fullWidth size="small">
                         <InputLabel>Action Type</InputLabel>
-                        <Select {...register(`actions.${index}.type`)} defaultValue="webhook">
-                          {actionTypes.map((type) => (
-                            <MenuItem key={type.value} value={type.value}>
-                              {type.label}
-                            </MenuItem>
-                          ))}
-                        </Select>
+                        <Controller
+                          name={`actions.${index}.type`}
+                          control={control}
+                          render={({ field }) => (
+                            <Select {...field}>
+                              {actionTypes.map((type) => (
+                                <MenuItem key={type.value} value={type.value}>
+                                  {type.label}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          )}
+                        />
                       </FormControl>
                     </Grid>
                     <Grid item xs={12} sm={7}>
@@ -440,7 +497,6 @@ export function CorrelationRuleForm({ open, onClose, onSubmit, initialData, titl
                       <IconButton
                         color="error"
                         onClick={() => removeAction(index)}
-                        disabled={actionFields.length === 1}
                       >
                         <DeleteIcon />
                       </IconButton>

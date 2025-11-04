@@ -23,13 +23,14 @@ class WebSocketService {
   private reconnectInterval = 1000; // Start with 1 second
   private callbacks: WebSocketCallbacks = {};
   private isConnecting = false;
+  private isEnabled = false; // Don't auto-connect until explicitly enabled
 
   constructor() {
-    this.connect();
+    // Removed auto-connect - will only connect when subscribe() is called
   }
 
   private getWebSocketUrl(): string {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081';
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
     // Convert HTTP to WS
     const wsUrl = baseUrl.replace(/^http/, 'ws');
     return `${wsUrl}/ws`;
@@ -71,7 +72,12 @@ class WebSocketService {
       };
 
       this.ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        // Silently handle WebSocket errors if the endpoint doesn't exist
+        // Only log if we were previously connected (indicating a real error)
+        if (this.reconnectAttempts > 0) {
+          console.warn('WebSocket connection lost, attempting to reconnect...');
+        }
+        // Don't spam console with errors on initial connection failure
         this.callbacks.onError?.(error);
       };
 
@@ -83,6 +89,11 @@ class WebSocketService {
   }
 
   private attemptReconnect(): void {
+    // Don't attempt reconnection if WebSocket is not enabled
+    if (!this.isEnabled) {
+      return;
+    }
+
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.error('Max reconnection attempts reached');
       return;
@@ -118,13 +129,22 @@ class WebSocketService {
 
   subscribe(callbacks: WebSocketCallbacks): void {
     this.callbacks = { ...this.callbacks, ...callbacks };
+
+    // Only enable and connect if not already enabled
+    if (!this.isEnabled) {
+      this.isEnabled = true;
+      this.connect();
+    }
   }
 
   unsubscribe(): void {
     this.callbacks = {};
+    // Optionally disconnect when no callbacks are registered
+    this.disconnect();
   }
 
   disconnect(): void {
+    this.isEnabled = false; // Disable to prevent reconnections
     if (this.ws) {
       this.ws.close();
       this.ws = null;
