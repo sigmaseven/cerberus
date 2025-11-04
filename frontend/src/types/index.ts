@@ -146,3 +146,103 @@ export interface ApiResponse<T> {
   message?: string;
   error?: string;
 }
+
+export interface PaginationResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+}
+
+// Import/Export Types
+export interface ImportResult {
+  success: boolean;
+  totalProcessed: number;
+  successfulImports: number;
+  failedImports: number;
+  conflicts: ImportConflict[];
+  errors: ImportError[];
+}
+
+export interface ImportConflict {
+  ruleId: string;
+  reason: string;
+  resolution: string;
+}
+
+export interface ImportError {
+  ruleId?: string;
+  message: string;
+}
+
+// Event Search Types
+export interface TimeRange {
+  start: string;
+  end: string;
+}
+
+export interface SearchRequest {
+  query: string;
+  time_range?: TimeRange;
+  page?: number;
+  limit?: number;
+  sort_by?: string;
+  sort_order?: 'asc' | 'desc';
+  fields?: string[];
+  params?: Record<string, any>;
+}
+
+export interface SearchResponse {
+  events: Record<string, any>[];
+  total: number;
+  page: number;
+  limit: number;
+  execution_time_ms: number;
+  query: string;
+  time_range?: TimeRange;
+}
+
+export interface SavedSearch {
+  id?: string;
+  user_id?: string;
+  name: string;
+  description: string;
+  query: string;
+  time_range?: TimeRange;
+  tags: string[];
+  is_default: boolean;
+  is_shared: boolean;
+  shared_with: string[];
+  created_at?: string;
+  updated_at?: string;
+  last_used?: string;
+  use_count?: number;
+  metadata?: Record<string, any>;
+}
+
+export interface SearchField {
+  name: string;
+  type: string;
+  description: string;
+}
+
+export interface SearchOperator {
+  value: string;
+  label: string;
+  symbol?: string;
+  types: string[];
+}
+
+export interface QueryValidationResult {
+  valid: boolean;
+  error?: string;
+  message?: string;
+}
+
+export interface ExportRequest {
+  query: string;
+  time_range?: TimeRange;
+  format: 'json' | 'csv';
+  limit?: number;
+}

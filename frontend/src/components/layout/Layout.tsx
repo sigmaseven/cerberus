@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Box,
   Drawer,
@@ -21,6 +21,7 @@ import {
   Dashboard as DashboardIcon,
   Warning as AlertsIcon,
   Event as EventsIcon,
+  Search as SearchIcon,
   Rule as RulesIcon,
   Link as CorrelationRulesIcon,
   Settings as ActionsIcon,
@@ -36,13 +37,14 @@ const navigationItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
   { text: 'Alerts', icon: <AlertsIcon />, path: '/alerts' },
   { text: 'Events', icon: <EventsIcon />, path: '/events' },
+  { text: 'Event Search', icon: <SearchIcon />, path: '/event-search' },
   { text: 'Rules', icon: <RulesIcon />, path: '/rules' },
   { text: 'Correlation Rules', icon: <CorrelationRulesIcon />, path: '/correlation-rules' },
   { text: 'Actions', icon: <ActionsIcon />, path: '/actions' },
   { text: 'Listeners', icon: <ListenersIcon />, path: '/listeners' },
 ];
 
-function Layout() {
+function Layout({ page }: { page: React.ReactNode }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { sidebarOpen, setSidebarOpen } = useUiStore();
@@ -62,7 +64,7 @@ function Layout() {
       <List>
         {navigationItems.map((item) => (
           <ListItem key={item.text} disablePadding>
-            <ListItemButton component="a" href={item.path}>
+            <ListItemButton component={Link} to={item.path}>
               <ListItemIcon>
                 {item.icon}
               </ListItemIcon>
@@ -167,7 +169,7 @@ function Layout() {
         }}
       >
         <Toolbar />
-        <Outlet />
+        {page}
       </Box>
     </Box>
   );
