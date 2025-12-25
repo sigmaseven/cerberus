@@ -1,0 +1,14 @@
+title: Edge Case - Empty String Detection
+id: test-edge-empty-001
+status: test
+description: Tests handling of empty string values
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_empty_cmd:
+        CommandLine: ''
+    selection_null_user:
+        User: null
+    condition: selection_empty_cmd or selection_null_user
+level: low

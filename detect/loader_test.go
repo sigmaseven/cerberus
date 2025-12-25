@@ -1,205 +1,139 @@
 package detect
 
 import (
-	"os"
 	"testing"
-
-	"cerberus/core"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 )
 
+// TASK #182: File-based rule loading tests removed
+// All file loading functions have been deleted as part of the database-only architecture.
+//
+// Deleted tests (for deleted functions):
+// - TestLoadRules_JSON (tested LoadRules file loading)
+// - TestLoadRules_FileNotFound (tested file not found error)
+// - TestLoadRules_InvalidJSON (tested invalid JSON handling)
+// - TestLoadCorrelationRules_JSON (tested LoadCorrelationRules file loading)
+// - TestLoadCorrelationRules_FileNotFound (tested file not found error)
+// - TestLoadCorrelationRules_InvalidJSON (tested invalid JSON handling)
+// - TestCompileRegexInRules_InvalidRegex (tested regex compilation)
+// - TestCompileRegexInCorrelationRules_InvalidRegex (tested regex compilation)
+// - TestLoadRulesFromFile_EmptyRules (tested empty rules handling)
+// - TestLoadRulesFromFile_MissingID (tested missing ID validation)
+// - TestLoadCorrelationRulesFromFile_MissingID (tested missing ID validation)
+// - TestLoadCorrelationRulesFromFile_EmptySequence (tested empty sequence)
+// - TestRuleLoader_PathTraversal_SymlinkEscape (tested symlink security)
+// - TestRuleLoader_PathTraversal_DotDotSlash (tested ../ security)
+// - TestRuleLoader_PathTraversal_AbsolutePathOutsideBase (tested base directory)
+//
+// Security benefits of deletion:
+// - Path traversal vulnerabilities eliminated (no file paths accepted)
+// - Symlink escape attacks eliminated (no file system access)
+// - No more CERBERUS_TEST_MODE bypass for security checks
+//
+// These tests are preserved as skipped tests to document what was previously tested.
+
+// TestLoadRules_JSON - TASK #182: SKIPPED
+// The LoadRules file loading function was deleted.
 func TestLoadRules_JSON(t *testing.T) {
-	logger := zap.NewNop()
-	sugar := logger.Sugar()
-	defer logger.Sync()
-
-	rules, err := LoadRules("../rules.json", sugar)
-	assert.NoError(t, err)
-	assert.Len(t, rules, 2)
-	assert.Equal(t, "failed_login", rules[0].ID)
-	assert.Equal(t, "admin_access", rules[1].ID)
+	t.Skip("LoadRules function deleted in Task #182 - database-only architecture")
 }
 
+// TestLoadRules_FileNotFound - TASK #182: SKIPPED
 func TestLoadRules_FileNotFound(t *testing.T) {
-	logger := zap.NewNop()
-	sugar := logger.Sugar()
-	defer logger.Sync()
-
-	_, err := LoadRules("nonexistent.json", sugar)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to read rules file")
+	t.Skip("LoadRules function deleted in Task #182 - database-only architecture")
 }
 
+// TestLoadRules_InvalidJSON - TASK #182: SKIPPED
 func TestLoadRules_InvalidJSON(t *testing.T) {
-	logger := zap.NewNop()
-	sugar := logger.Sugar()
-	defer logger.Sync()
-
-	// Create a temporary invalid JSON file
-	tempFile := "/tmp/invalid_rules.json"
-	defer os.Remove(tempFile)
-
-	err := os.WriteFile(tempFile, []byte("invalid json"), 0644)
-	assert.NoError(t, err)
-
-	_, err = LoadRules(tempFile, sugar)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to unmarshal rules")
+	t.Skip("LoadRules function deleted in Task #182 - database-only architecture")
 }
 
+// TestLoadCorrelationRules_JSON - TASK #182: SKIPPED
 func TestLoadCorrelationRules_JSON(t *testing.T) {
-	logger := zap.NewNop()
-	sugar := logger.Sugar()
-	defer logger.Sync()
-
-	rules, err := LoadCorrelationRules("../correlation_rules.json", sugar)
-	assert.NoError(t, err)
-	assert.Len(t, rules, 1)
-	assert.Equal(t, "brute_force", rules[0].ID)
+	t.Skip("LoadCorrelationRules function deleted in Task #182 - database-only architecture")
 }
 
+// TestLoadCorrelationRules_FileNotFound - TASK #182: SKIPPED
 func TestLoadCorrelationRules_FileNotFound(t *testing.T) {
-	logger := zap.NewNop()
-	sugar := logger.Sugar()
-	defer logger.Sync()
-
-	_, err := LoadCorrelationRules("nonexistent.json", sugar)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to read correlation rules file")
+	t.Skip("LoadCorrelationRules function deleted in Task #182 - database-only architecture")
 }
 
+// TestLoadCorrelationRules_InvalidJSON - TASK #182: SKIPPED
 func TestLoadCorrelationRules_InvalidJSON(t *testing.T) {
-	logger := zap.NewNop()
-	sugar := logger.Sugar()
-	defer logger.Sync()
-
-	// Create a temporary invalid JSON file
-	tempFile := "/tmp/invalid_correlation_rules.json"
-	defer os.Remove(tempFile)
-
-	err := os.WriteFile(tempFile, []byte("invalid json"), 0644)
-	assert.NoError(t, err)
-
-	_, err = LoadCorrelationRules(tempFile, sugar)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to unmarshal correlation rules")
+	t.Skip("LoadCorrelationRules function deleted in Task #182 - database-only architecture")
 }
 
+// TestCompileRegexInRules_InvalidRegex - TASK #182: SKIPPED
 func TestCompileRegexInRules_InvalidRegex(t *testing.T) {
-	logger := zap.NewNop()
-	sugar := logger.Sugar()
-	defer logger.Sync()
-
-	rules := []core.Rule{
-		{
-			ID: "test",
-			Conditions: []core.Condition{
-				{
-					Field:    "field",
-					Operator: "regex",
-					Value:    "[invalid regex",
-				},
-			},
-		},
-	}
-
-	validRules, err := compileRegexInRules(rules, "rule", sugar)
-	assert.NoError(t, err)
-	assert.Len(t, validRules, 0)
+	t.Skip("compileRegexInRules function deleted in Task #182 - database-only architecture")
 }
 
+// TestCompileRegexInCorrelationRules_InvalidRegex - TASK #182: SKIPPED
 func TestCompileRegexInCorrelationRules_InvalidRegex(t *testing.T) {
-	logger := zap.NewNop()
-	sugar := logger.Sugar()
-	defer logger.Sync()
-
-	rules := []core.CorrelationRule{
-		{
-			ID: "test",
-			Conditions: []core.Condition{
-				{
-					Field:    "field",
-					Operator: "regex",
-					Value:    "[invalid regex",
-				},
-			},
-		},
-	}
-
-	validRules, err := compileRegexInCorrelationRules(rules, "correlation rule", sugar)
-	assert.NoError(t, err)
-	assert.Len(t, validRules, 0)
+	t.Skip("compileRegexInCorrelationRules function deleted in Task #182 - database-only architecture")
 }
 
+// TestLoadRulesFromFile_EmptyRules - TASK #182: SKIPPED
 func TestLoadRulesFromFile_EmptyRules(t *testing.T) {
-	logger := zap.NewNop()
-	sugar := logger.Sugar()
-	defer logger.Sync()
-
-	// Create a temporary file with empty rules
-	tempFile := "/tmp/empty_rules.json"
-	defer os.Remove(tempFile)
-
-	emptyRules := `{"rules": []}`
-	err := os.WriteFile(tempFile, []byte(emptyRules), 0644)
-	assert.NoError(t, err)
-
-	rules, err := loadRulesFromFile(tempFile, sugar)
-	assert.NoError(t, err)
-	assert.Len(t, rules, 0)
+	t.Skip("loadRulesFromFile function deleted in Task #182 - database-only architecture")
 }
 
+// TestLoadRulesFromFile_MissingID - TASK #182: SKIPPED
 func TestLoadRulesFromFile_MissingID(t *testing.T) {
-	logger := zap.NewNop()
-	sugar := logger.Sugar()
-	defer logger.Sync()
-
-	// Create a temporary file with rule missing ID
-	tempFile := "/tmp/missing_id_rules.json"
-	defer os.Remove(tempFile)
-
-	invalidRules := `{"rules": [{"conditions": []}]}`
-	err := os.WriteFile(tempFile, []byte(invalidRules), 0644)
-	assert.NoError(t, err)
-
-	_, err = loadRulesFromFile(tempFile, sugar)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "rule missing ID")
+	t.Skip("loadRulesFromFile function deleted in Task #182 - database-only architecture")
 }
 
+// TestLoadCorrelationRulesFromFile_MissingID - TASK #182: SKIPPED
 func TestLoadCorrelationRulesFromFile_MissingID(t *testing.T) {
-	logger := zap.NewNop()
-	sugar := logger.Sugar()
-	defer logger.Sync()
-
-	// Create a temporary file with correlation rule missing ID
-	tempFile := "/tmp/missing_id_correlation.json"
-	defer os.Remove(tempFile)
-
-	invalidRules := `{"rules": [{"sequence": ["event1", "event2"]}]}`
-	err := os.WriteFile(tempFile, []byte(invalidRules), 0644)
-	assert.NoError(t, err)
-
-	_, err = loadCorrelationRulesFromFile(tempFile, sugar)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "correlation rule missing ID")
+	t.Skip("loadCorrelationRulesFromFile function deleted in Task #182 - database-only architecture")
 }
 
+// TestLoadCorrelationRulesFromFile_EmptySequence - TASK #182: SKIPPED
 func TestLoadCorrelationRulesFromFile_EmptySequence(t *testing.T) {
-	logger := zap.NewNop()
-	sugar := logger.Sugar()
-	defer logger.Sync()
+	t.Skip("loadCorrelationRulesFromFile function deleted in Task #182 - database-only architecture")
+}
 
-	// Create a temporary file with correlation rule with empty sequence
-	tempFile := "/tmp/empty_sequence_correlation.json"
-	defer os.Remove(tempFile)
+// TestRuleLoader_PathTraversal_SymlinkEscape - TASK #182: SKIPPED
+// Security test no longer needed - file loading eliminated.
+func TestRuleLoader_PathTraversal_SymlinkEscape(t *testing.T) {
+	t.Skip("loadRulesFromFile function deleted in Task #182 - path traversal vulnerability eliminated")
+}
 
-	invalidRules := `{"rules": [{"id": "test", "sequence": []}]}`
-	err := os.WriteFile(tempFile, []byte(invalidRules), 0644)
-	assert.NoError(t, err)
+// TestRuleLoader_PathTraversal_DotDotSlash - TASK #182: SKIPPED
+// Security test no longer needed - file loading eliminated.
+func TestRuleLoader_PathTraversal_DotDotSlash(t *testing.T) {
+	t.Skip("loadRulesFromFile function deleted in Task #182 - path traversal vulnerability eliminated")
+}
 
-	rules, err := loadCorrelationRulesFromFile(tempFile, sugar)
-	assert.NoError(t, err)
-	assert.Len(t, rules, 1) // Should load but warn
+// TestRuleLoader_PathTraversal_AbsolutePathOutsideBase - TASK #182: SKIPPED
+// Security test no longer needed - file loading eliminated.
+func TestRuleLoader_PathTraversal_AbsolutePathOutsideBase(t *testing.T) {
+	t.Skip("loadRulesFromFile function deleted in Task #182 - path traversal vulnerability eliminated")
+}
+
+// TestLoaderDocumentation documents the historical context of file loading
+// This test is kept for reference purposes.
+func TestLoaderDocumentation(t *testing.T) {
+	t.Log("\n╔════════════════════════════════════════════════════════════════════════════╗")
+	t.Log("║ TASK #182: File-Based Rule Loading Removal - HISTORICAL REFERENCE         ║")
+	t.Log("╠════════════════════════════════════════════════════════════════════════════╣")
+	t.Log("║                                                                            ║")
+	t.Log("║ File loading functions DELETED:                                            ║")
+	t.Log("║   - LoadRules (file loading wrapper)                                       ║")
+	t.Log("║   - LoadCorrelationRules (file loading wrapper)                            ║")
+	t.Log("║   - loadRulesFromFile (internal file loading)                              ║")
+	t.Log("║   - loadCorrelationRulesFromFile (internal file loading)                   ║")
+	t.Log("║   - compileRegexInRules (regex compilation for file rules)                 ║")
+	t.Log("║   - compileRegexInCorrelationRules (regex compilation for file rules)      ║")
+	t.Log("║                                                                            ║")
+	t.Log("║ CURRENT ARCHITECTURE:                                                      ║")
+	t.Log("║   - LoadRulesFromDB: Load rules from database                              ║")
+	t.Log("║   - LoadCorrelationRulesFromDB: Load correlation rules from database       ║")
+	t.Log("║   - SIGMA feeds: Import rules from external sources into database          ║")
+	t.Log("║                                                                            ║")
+	t.Log("║ SECURITY BENEFITS:                                                         ║")
+	t.Log("║   - Path traversal vulnerabilities eliminated                              ║")
+	t.Log("║   - Symlink escape attacks eliminated                                      ║")
+	t.Log("║   - No file system access for rule loading                                 ║")
+	t.Log("║   - Single source of truth (database)                                      ║")
+	t.Log("╚════════════════════════════════════════════════════════════════════════════╝")
 }

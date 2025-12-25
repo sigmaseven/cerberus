@@ -1,0 +1,221 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"log"
+	"time"
+
+	"cerberus/config"
+	"cerberus/core"
+	"cerberus/detect"
+	"cerberus/ingest"
+	"cerberus/storage"
+
+	"go.uber.org/zap"
+)
+
+func main() {
+	// Load config
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+
+	// Create logger
+	logger, _ := zap.NewDevelopment()
+	defer logger.Sync()
+	sugar := logger.Sugar()
+
+	// Connect to ClickHouse for events
+	clickhouse, err := storage.NewClickHouse(cfg, sugar)
+	if err != nil {
+		log.Fatalf("Failed to connect to ClickHouse: %v", err)
+	}
+	defer clickhouse.Close()
+
+	// Create event storage
+	eventStorage := storage.NewClickHouseEventStorage(clickhouse, cfg, sugar)
+
+	// Create alert storage channel and storage
+	alertCh := make(chan *core.Alert, 100)
+	alertStorage, err := storage.NewClickHouseAlertStorage(clickhouse, cfg, alertCh, sugar)
+	if err != nil {
+		log.Fatalf("Failed to create alert storage: %v", err)
+	}
+
+	// Connect to SQLite for rules
+	sqliteDB, err := storage.NewSQLite(cfg, sugar)
+	if err != nil {
+		log.Fatalf("Failed to connect to SQLite: %v", err)
+	}
+	defer sqliteDB.Close()
+
+	// Load rules
+	ruleStorage := storage.NewSQLiteRuleStorage(sqliteDB.DB, sugar)
+	rules, err := ruleStorage.GetEnabledRules()
+	if err != nil {
+		log.Fatalf("Failed to load rules: %v", err)
+	}
+	sugar.Infof("Loaded %d enabled rules", len(rules))
+
+	// Create detection engine
+	engine, err := detect.NewRuleEngine(rules, []core.CorrelationRule{}, 300, sugar)
+	if err != nil {
+		log.Fatalf("Failed to create detection engine: %v", err)
+	}
+
+	// Create event and alert channels
+	inputEventCh := make(chan *core.Event, 10)
+	outputEventCh := make(chan *core.Event, 10)
+
+	ctx := context.Background()
+
+	// Create detector
+	detector := detect.NewDetector(ctx, engine, nil, nil, nil, inputEventCh, outputEventCh, alertCh, cfg, sugar)
+	detector.Start()
+
+	// Start alert storage workers
+	alertStorage.Start(2)
+
+	// Start event storage worker
+	go func() {
+		for event := range outputEventCh {
+			if err := eventStorage.InsertEvent(event); err != nil {
+				sugar.Errorf("Failed to store event: %v", err)
+			} else {
+				sugar.Infof("Event stored: %s", event.EventID)
+			}
+		}
+	}()
+
+	// Create 3 test events to trigger alerts
+	log.Println("\n=== E2E TEST: Sending 3 events to trigger detection rules ===\n")
+
+	// Event 1: PsExec Named Pipe
+	event1 := &core.Event{
+		EventID:      core.GenerateEventID(),
+		Timestamp:    time.Now().UTC(),
+		IngestedAt:   time.Now().UTC(),
+		ListenerID:   "e2e-test-listener",
+		ListenerName: "E2E Test",
+		Source:       "e2e-test",
+		SourceFormat: "json",
+		RawData:      `{"EventID": 17, "EventType": "pipe_created", "Computer": "WIN-TEST-01", "PipeName": "\\PSEXESVC", "User": "NT AUTHORITY\\SYSTEM"}`,
+		Fields: map[string]interface{}{
+			"EventID":    17,
+			"EventType":  "pipe_created",
+			"Computer":   "WIN-TEST-01",
+			"PipeName":   "\\PSEXESVC",
+			"User":       "NT AUTHORITY\\SYSTEM",
+			"source_ip":  "192.168.1.100",
+		},
+	}
+
+	log.Printf("[1/3] Sending PsExec Named Pipe event (EventID: %s)", event1.EventID)
+	inputEventCh <- event1
+	time.Sleep(2 * time.Second)
+
+	// Event 2: PowerShell bXOR Operator
+	event2 := &core.Event{
+		EventID:      core.GenerateEventID(),
+		Timestamp:    time.Now().UTC(),
+		IngestedAt:   time.Now().UTC(),
+		ListenerID:   "e2e-test-listener",
+		ListenerName: "E2E Test",
+		Source:       "e2e-test",
+		SourceFormat: "json",
+		RawData:      `{"EventID": 4104, "EventType": "ps_classic_start", "Computer": "WIN-TEST-01", "Data": "HostName=ConsoleHost NewEngineState=Available $encoded = $plaintext -bxor 0x42"}`,
+		Fields: map[string]interface{}{
+			"EventID":    4104,
+			"EventType":  "ps_classic_start",
+			"Computer":   "WIN-TEST-01",
+			"Data":       "HostName=ConsoleHost NewEngineState=Available $encoded = $plaintext -bxor 0x42",
+			"User":       "DOMAIN\\Administrator",
+			"source_ip":  "192.168.1.100",
+		},
+	}
+
+	log.Printf("[2/3] Sending PowerShell bXOR event (EventID: %s)", event2.EventID)
+	inputEventCh <- event2
+	time.Sleep(2 * time.Second)
+
+	// Event 3: Compress-Archive Cmdlet
+	event3 := &core.Event{
+		EventID:      core.GenerateEventID(),
+		Timestamp:    time.Now().UTC(),
+		IngestedAt:   time.Now().UTC(),
+		ListenerID:   "e2e-test-listener",
+		ListenerName: "E2E Test",
+		Source:       "e2e-test",
+		SourceFormat: "json",
+		RawData:      `{"EventID": 4104, "EventType": "ps_script", "Computer": "WIN-TEST-01", "ScriptBlockText": "Get-ChildItem C:\\Temp\\*.txt | Compress-Archive -DestinationPath C:\\Temp\\backup.zip"}`,
+		Fields: map[string]interface{}{
+			"EventID":         4104,
+			"EventType":       "ps_script",
+			"Computer":        "WIN-TEST-01",
+			"ScriptBlockText": "Get-ChildItem C:\\Temp\\*.txt | Compress-Archive -DestinationPath C:\\Temp\\backup.zip",
+			"User":            "DOMAIN\\Administrator",
+			"source_ip":       "192.168.1.100",
+		},
+	}
+
+	log.Printf("[3/3] Sending Compress-Archive event (EventID: %s)", event3.EventID)
+	inputEventCh <- event3
+
+	// Wait for processing
+	log.Println("\n⏳ Waiting 10 seconds for detection and storage...")
+	time.Sleep(10 * time.Second)
+
+	// Close channels
+	close(inputEventCh)
+	time.Sleep(2 * time.Second)
+
+	// Query events from storage
+	log.Println("\n=== Verifying Events in Storage ===")
+	events, err := eventStorage.GetEvents(100, 0)
+	if err != nil {
+		log.Fatalf("Failed to query events: %v", err)
+	}
+	log.Printf("✅ Found %d events in storage", len(events))
+	for _, evt := range events {
+		if evt.ListenerID == "e2e-test-listener" {
+			log.Printf("  - Event: %s | %s | %v", evt.EventID, evt.SourceFormat, evt.Fields["EventType"])
+		}
+	}
+
+	// Query alerts from storage
+	log.Println("\n=== Verifying Alerts in Storage ===")
+	alerts, err := alertStorage.GetAlerts(100, 0)
+	if err != nil {
+		log.Fatalf("Failed to query alerts: %v", err)
+	}
+	log.Printf("✅ Found %d alerts in storage", len(alerts))
+
+	testAlertCount := 0
+	for _, alert := range alerts {
+		if alert.Event != nil && alert.Event.ListenerID == "e2e-test-listener" {
+			log.Printf("  - Alert: %s | Rule: %s | Severity: %s", alert.AlertID, alert.RuleID, alert.Severity)
+			if alert.Event != nil {
+				eventData, _ := json.MarshalIndent(alert.Event.Fields, "    ", "  ")
+				log.Printf("    Event Data: %s", eventData)
+			}
+			testAlertCount++
+		}
+	}
+
+	log.Printf("\n" + "=" * 60)
+	log.Printf("🎯 E2E TEST RESULTS:")
+	log.Printf("  - Events sent: 3")
+	log.Printf("  - Events stored: %d (total)", len(events))
+	log.Printf("  - Alerts generated: %d", testAlertCount)
+	log.Printf("=" * 60)
+
+	if testAlertCount >= 3 {
+		log.Println("✅ SUCCESS: All 3 alerts generated and stored!")
+	} else if testAlertCount > 0 {
+		log.Printf("⚠️  PARTIAL: Only %d/%d alerts generated", testAlertCount, 3)
+	} else {
+		log.Println("❌ FAILURE: No alerts generated")
+	}
+}

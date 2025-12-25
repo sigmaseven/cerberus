@@ -1,0 +1,894 @@
+# SIGMA Rule Feeds API - Swagger Documentation Supplement
+# This file contains comprehensive API documentation for feed endpoints
+# Integrate this into the main swagger.yaml file
+
+# ==================== DEFINITIONS ====================
+
+definitions:
+  RuleFeed:
+    type: object
+    description: |
+      A SIGMA rule feed source configuration for importing detection rules.
+      Feeds automatically sync rules from external sources like Git repositories or filesystem paths.
+    required:
+      - name
+      - type
+      - enabled
+    properties:
+      id:
+        type: string
+        description: Unique feed identifier (UUID, auto-generated)
+        example: "feed-abc123"
+        readOnly: true
+      name:
+        type: string
+        description: Human-readable feed name
+        example: "SigmaHQ Official Rules"
+        minLength: 1
+        maxLength: 255
+      description:
+        type: string
+        description: Detailed description of feed purpose and content
+        example: "Official SIGMA detection rules from SigmaHQ repository - main branch"
+        maxLength: 1024
+      type:
+        type: string
+        description: |
+          Feed source type:
+          - git: Git repository (GitHub, GitLab, etc.)
+          - filesystem: Local or network filesystem path
+          - http: HTTP/HTTPS endpoint (future)
+          - api: REST API endpoint (future)
+          - s3: AWS S3 or S3-compatible storage (future)
+          - webhook: Webhook-triggered feed (future)
+        enum: [git, http, filesystem, api, s3, webhook]
+        example: "git"
+      status:
+        type: string
+        description: |
+          Current feed operational status (read-only):
+          - active: Feed is healthy and ready
+          - syncing: Feed synchronization in progress
+          - error: Last sync failed (check stats.last_error)
+          - disabled: Feed manually disabled
+        enum: [active, disabled, error, syncing]
+        example: "active"
+        readOnly: true
+      enabled:
+        type: boolean
+        description: Whether feed synchronization is enabled (manual and scheduled syncs)
+        example: true
+        default: true
+      url:
+        type: string
+        description: |
+          Repository URL (required for git/http/api feed types).
+          Must use HTTPS or git protocol. HTTP not allowed for security.
+        example: "https://github.com/SigmaHQ/sigma.git"
+        format: uri
+      branch:
+        type: string
+        description: Git branch name (for git feed type)
+        example: "master"
+        default: "master"
+      path:
+        type: string
+        description: |
+          Filesystem path (required for filesystem feed type).
+          Must be absolute path. Path traversal protection enforced.
+        example: "/opt/cerberus/custom-rules"
+      auth_config:
+        type: object
+        description: |
+          Authentication credentials (encrypted at rest, redacted in API responses).
+          Supported keys: username, password, token, ssh_key, api_key, client_id, client_secret.
+        additionalProperties: true
+        example:
+          username: "***REDACTED***"
+          token: "***REDACTED***"
+      include_paths:
+        type: array
+        description: |
+          Path patterns to include during sync (glob syntax supported).
+          Relative to repository root or filesystem path.
+        items:
+          type: string
+        example: ["rules/windows/", "rules/linux/"]
+      exclude_paths:
+        type: array
+        description: |
+          Path patterns to exclude during sync (glob syntax supported).
+          Useful for excluding deprecated or experimental rules.
+        items:
+          type: string
+        example: ["rules/deprecated/", "rules/experimental/"]
+      include_tags:
+        type: array
+        description: Only import rules containing ALL of these tags (AND logic)
+        items:
+          type: string
+        example: ["attack.execution", "windows"]
+      exclude_tags:
+        type: array
+        description: Skip rules containing ANY of these tags (OR logic)
+        items:
+          type: string
+        example: ["test", "experimental"]
+      min_severity:
+        type: string
+        description: Minimum rule severity level to import (filters out lower severities)
+        enum: [informational, low, medium, high, critical]
+        example: "medium"
+      auto_enable_rules:
+        type: boolean
+        description: |
+          Automatically enable imported rules for detection.
+          WARNING: Only enable for trusted feeds after validation in test environment.
+        example: false
+        default: false
+      priority:
+        type: integer
+        description: |
+          Feed priority for conflict resolution (1-110, higher value = precedence).
+          When same rule exists in multiple feeds, higher priority feed wins.
+          Recommended ranges:
+          - 100-110: Official/vendor rules
+          - 80-99: Community rules
+          - 50-79: Custom internal rules (production)
+          - 1-49: Experimental rules
+        minimum: 1
+        maximum: 110
+        example: 100
+        default: 100
+      update_strategy:
+        type: string
+        description: |
+          Feed update strategy:
+          - manual: Sync only when explicitly triggered
+          - startup: Sync automatically on Cerberus startup
+          - scheduled: Sync on recurring schedule (requires update_schedule)
+          - webhook: Sync via webhook trigger (future)
+        enum: [manual, startup, scheduled, webhook]
+        example: "scheduled"
+        default: "manual"
+      update_schedule:
+        type: string
+        description: |
+          Cron expression for scheduled updates (required when update_strategy is 'scheduled').
+          Format: minute hour day month weekday
+          Examples:
+          - "0 2 * * *" = Daily at 2 AM
+          - "0 */6 * * *" = Every 6 hours
+          - "0 0 * * 0" = Weekly on Sunday
+        example: "0 2 * * *"
+        pattern: '^(\S+\s+){4}\S+$'
+      last_sync:
+        type: string
+        format: date-time
+        description: Timestamp of last successful synchronization (read-only)
+        example: "2025-01-15T02:00:00Z"
+        readOnly: true
+      next_sync:
+        type: string
+        format: date-time
+        description: Timestamp of next scheduled synchronization (read-only, null for manual strategy)
+        example: "2025-01-16T02:00:00Z"
+        readOnly: true
+      stats:
+        $ref: '#/definitions/FeedStats'
+      tags:
+        type: array
+        description: Custom tags for organizing and filtering feeds
+        items:
+          type: string
+        example: ["official", "sigmahq", "windows"]
+      metadata:
+        type: object
+        description: Additional key-value metadata for custom use
+        additionalProperties:
+          type: string
+        example:
+          source: "community"
+          maintainer: "SigmaHQ"
+      created_at:
+        type: string
+        format: date-time
+        description: Feed creation timestamp (read-only)
+        example: "2024-12-01T10:00:00Z"
+        readOnly: true
+      updated_at:
+        type: string
+        format: date-time
+        description: Last modification timestamp (read-only)
+        example: "2025-01-15T02:00:00Z"
+        readOnly: true
+      created_by:
+        type: string
+        description: Username of feed creator (read-only)
+        example: "admin"
+        readOnly: true
+
+  FeedStats:
+    type: object
+    description: Feed synchronization statistics
+    properties:
+      total_rules:
+        type: integer
+        description: Total number of rules discovered in feed source
+        example: 3245
+      imported_rules:
+        type: integer
+        description: Number of rules successfully imported in last sync
+        example: 3200
+      updated_rules:
+        type: integer
+        description: Number of existing rules updated in last sync
+        example: 15
+      skipped_rules:
+        type: integer
+        description: Number of rules skipped due to filters or duplicates
+        example: 30
+      failed_rules:
+        type: integer
+        description: Number of rules that failed validation in last sync
+        example: 45
+      last_sync_duration:
+        type: number
+        format: float
+        description: Duration of last sync operation in seconds
+        example: 45.3
+      last_error:
+        type: string
+        description: Error message from last failed sync (empty if successful)
+        example: "authentication failed: invalid credentials"
+      sync_count:
+        type: integer
+        description: Total number of synchronizations performed
+        example: 42
+
+  FeedSyncResult:
+    type: object
+    description: Result of a feed synchronization operation
+    properties:
+      feed_id:
+        type: string
+        description: Feed identifier
+        example: "feed-abc123"
+      feed_name:
+        type: string
+        description: Feed name
+        example: "SigmaHQ Official Rules"
+      start_time:
+        type: string
+        format: date-time
+        description: Sync operation start timestamp
+        example: "2025-01-15T02:00:00Z"
+      end_time:
+        type: string
+        format: date-time
+        description: Sync operation end timestamp
+        example: "2025-01-15T02:00:45Z"
+      duration:
+        type: number
+        format: float
+        description: Sync duration in seconds
+        example: 45.3
+      success:
+        type: boolean
+        description: Whether sync completed successfully
+        example: true
+      stats:
+        $ref: '#/definitions/FeedStats'
+      errors:
+        type: array
+        description: List of errors encountered during sync
+        items:
+          type: string
+        example: ["Failed to parse rule at rules/windows/broken.yml: invalid YAML syntax"]
+      rule_results:
+        type: array
+        description: Detailed results for each rule processed
+        items:
+          $ref: '#/definitions/RuleImportResult'
+
+  RuleImportResult:
+    type: object
+    description: Result of importing a single rule from feed
+    properties:
+      rule_id:
+        type: string
+        description: Rule identifier (if successfully imported)
+        example: "rule-123"
+      rule_title:
+        type: string
+        description: Rule title from SIGMA YAML
+        example: "Suspicious PowerShell Execution"
+      file_path:
+        type: string
+        description: Path to rule file in feed source
+        example: "rules/windows/powershell/suspicious.yml"
+      action:
+        type: string
+        description: Action taken for this rule
+        enum: [imported, updated, skipped, failed]
+        example: "imported"
+      error:
+        type: string
+        description: Error message if action was 'failed'
+        example: "missing required field: detection"
+      reason:
+        type: string
+        description: Reason for action (e.g., why skipped)
+        example: "rule already exists with same content hash"
+
+  FeedTemplate:
+    type: object
+    description: Pre-configured feed template for common sources
+    properties:
+      id:
+        type: string
+        description: Template identifier
+        example: "sigmahq-main"
+      name:
+        type: string
+        description: Template name
+        example: "SigmaHQ Official Rules (Main)"
+      description:
+        type: string
+        description: Template description
+        example: "Official SIGMA rules from SigmaHQ repository - main branch"
+      type:
+        type: string
+        enum: [git, filesystem, http]
+        example: "git"
+      url:
+        type: string
+        description: Pre-configured URL
+        example: "https://github.com/SigmaHQ/sigma.git"
+      branch:
+        type: string
+        description: Pre-configured branch
+        example: "master"
+      include_paths:
+        type: array
+        items:
+          type: string
+        example: ["rules/"]
+      recommended_priority:
+        type: integer
+        description: Recommended priority setting
+        example: 100
+      estimated_rule_count:
+        type: integer
+        description: Estimated number of rules in this feed
+        example: 3000
+      tags:
+        type: array
+        items:
+          type: string
+        example: ["official", "community", "comprehensive"]
+
+  FeedsListResponse:
+    type: object
+    description: Paginated list of feeds
+    properties:
+      items:
+        type: array
+        description: Feed objects in current page
+        items:
+          $ref: '#/definitions/RuleFeed'
+      total:
+        type: integer
+        description: Total number of feeds
+        example: 5
+      page:
+        type: integer
+        description: Current page number (1-indexed)
+        example: 1
+      limit:
+        type: integer
+        description: Maximum items per page
+        example: 50
+      total_pages:
+        type: integer
+        description: Total number of pages
+        example: 1
+
+  FeedResponse:
+    type: object
+    description: Single feed response wrapper
+    properties:
+      feed:
+        $ref: '#/definitions/RuleFeed'
+
+  SyncStatusResponse:
+    type: object
+    description: Async sync operation status response
+    properties:
+      status:
+        type: string
+        enum: [accepted, running, completed, failed]
+        description: Sync operation status
+        example: "accepted"
+      message:
+        type: string
+        description: Human-readable status message
+        example: "Feed synchronization started in background. Poll the stats endpoint to check completion status."
+      feed_id:
+        type: string
+        description: Feed identifier
+        example: "feed-abc123"
+      status_url:
+        type: string
+        description: URL to poll for sync completion status
+        example: "/api/v1/feeds/feed-abc123/stats"
+
+# ==================== PATHS ====================
+
+paths:
+  /api/v1/feeds:
+    get:
+      tags: [feeds]
+      summary: List rule feeds
+      description: |
+        Retrieve a paginated list of all configured SIGMA rule feeds.
+        Results can be filtered and sorted.
+      operationId: listFeeds
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          type: integer
+          minimum: 1
+          default: 1
+          description: Page number (1-indexed)
+        - name: limit
+          in: query
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 50
+          description: Maximum items per page (max 100)
+      responses:
+        200:
+          description: Paginated list of feeds
+          schema:
+            $ref: '#/definitions/FeedsListResponse'
+        500:
+          description: Server error
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+
+    post:
+      tags: [feeds]
+      summary: Create rule feed
+      description: |
+        Create a new SIGMA rule feed configuration.
+
+        **Steps:**
+        1. Configure feed source (Git URL or filesystem path)
+        2. Set filtering criteria (paths, tags, severity)
+        3. Configure update strategy and scheduling
+        4. Test connection before enabling
+        5. Enable feed for synchronization
+
+        **Security Notes:**
+        - Credentials in auth_config are encrypted at rest
+        - URLs are validated for SSRF protection
+        - Filesystem paths are sanitized to prevent traversal attacks
+      operationId: createFeed
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: body
+          name: feed
+          required: true
+          description: Feed configuration
+          schema:
+            $ref: '#/definitions/RuleFeed'
+      responses:
+        201:
+          description: Feed created successfully
+          schema:
+            $ref: '#/definitions/FeedResponse'
+        400:
+          description: Invalid feed configuration
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        409:
+          description: Feed with this ID already exists
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        500:
+          description: Server error
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+
+  /api/v1/feeds/{id}:
+    get:
+      tags: [feeds]
+      summary: Get feed details
+      description: |
+        Retrieve detailed information about a specific feed.
+        Sensitive fields in auth_config are redacted in response.
+      operationId: getFeedById
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+          description: Feed identifier
+      responses:
+        200:
+          description: Feed details
+          schema:
+            $ref: '#/definitions/FeedResponse'
+        404:
+          description: Feed not found
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        500:
+          description: Server error
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+
+    put:
+      tags: [feeds]
+      summary: Update feed configuration
+      description: |
+        Update an existing feed configuration.
+        Partial updates supported - only provided fields are updated.
+      operationId: updateFeed
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+          description: Feed identifier
+        - in: body
+          name: feed
+          required: true
+          description: Feed configuration updates
+          schema:
+            $ref: '#/definitions/RuleFeed'
+      responses:
+        200:
+          description: Feed updated successfully
+          schema:
+            $ref: '#/definitions/FeedResponse'
+        400:
+          description: Invalid feed configuration
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        404:
+          description: Feed not found
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        500:
+          description: Server error
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+
+    delete:
+      tags: [feeds]
+      summary: Delete rule feed
+      description: |
+        Delete a feed configuration.
+
+        **Important:** Deleting a feed does NOT delete rules that were previously
+        imported from it. Rules remain in the system until manually deleted.
+      operationId: deleteFeed
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+          description: Feed identifier
+      responses:
+        204:
+          description: Feed deleted successfully
+        404:
+          description: Feed not found
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        500:
+          description: Server error
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+
+  /api/v1/feeds/{id}/sync:
+    post:
+      tags: [feeds]
+      summary: Synchronize feed (async)
+      description: |
+        Trigger asynchronous synchronization of a SIGMA rule feed.
+
+        **Operation:**
+        - Returns immediately with 202 Accepted
+        - Sync runs in background (typically 30-60 seconds)
+        - Poll /api/v1/feeds/{id}/stats to check completion
+
+        **Sync Process:**
+        1. Fetch rules from feed source
+        2. Validate SIGMA YAML syntax
+        3. Apply filters (paths, tags, severity)
+        4. Import/update rules in database
+        5. Record sync history
+
+        **Concurrency:**
+        - Only one sync per feed can run at a time
+        - Returns 409 Conflict if sync already in progress
+      operationId: syncFeed
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+          description: Feed identifier
+      responses:
+        202:
+          description: Sync operation accepted and started in background
+          schema:
+            $ref: '#/definitions/SyncStatusResponse'
+        400:
+          description: Invalid request (e.g., feed disabled)
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        404:
+          description: Feed not found
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        409:
+          description: Feed is already syncing
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        500:
+          description: Server error
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+
+  /api/v1/feeds/sync-all:
+    post:
+      tags: [feeds]
+      summary: Synchronize all feeds (async)
+      description: |
+        Trigger asynchronous synchronization of all enabled SIGMA rule feeds.
+
+        **Operation:**
+        - Returns immediately with 202 Accepted
+        - Each enabled feed syncs in background
+        - Poll individual feed stats endpoints for progress
+
+        **Use Cases:**
+        - Initial setup (sync all feeds at once)
+        - Bulk updates after configuration changes
+        - Manual refresh of all threat intelligence
+      operationId: syncAllFeeds
+      security:
+        - BearerAuth: []
+      responses:
+        202:
+          description: Bulk sync operations accepted and started in background
+          schema:
+            $ref: '#/definitions/SyncStatusResponse'
+        500:
+          description: Server error
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+
+  /api/v1/feeds/{id}/history:
+    get:
+      tags: [feeds]
+      summary: Get sync history
+      description: |
+        Retrieve synchronization history for a feed.
+        Returns chronological list of past sync operations with detailed results.
+      operationId: getFeedHistory
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+          description: Feed identifier
+        - name: limit
+          in: query
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+          description: Maximum number of history entries to return
+      responses:
+        200:
+          description: Sync history
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/FeedSyncResult'
+        404:
+          description: Feed not found
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        500:
+          description: Server error
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+
+  /api/v1/feeds/{id}/stats:
+    get:
+      tags: [feeds]
+      summary: Get feed statistics
+      description: |
+        Retrieve detailed statistics for a feed.
+
+        **Use Cases:**
+        - Monitor feed health
+        - Check sync completion status
+        - Track rule import metrics
+        - Identify validation failures
+      operationId: getFeedStats
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+          description: Feed identifier
+      responses:
+        200:
+          description: Feed statistics
+          schema:
+            $ref: '#/definitions/FeedStats'
+        404:
+          description: Feed not found
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        500:
+          description: Server error
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+
+  /api/v1/feeds/templates:
+    get:
+      tags: [feeds]
+      summary: Get feed templates
+      description: |
+        Retrieve pre-configured feed templates for common SIGMA sources.
+
+        **Available Templates:**
+        - SigmaHQ Official Rules (Main)
+        - SigmaHQ Emerging Threats
+
+        **Usage:**
+        1. Get template
+        2. Customize configuration as needed
+        3. Create feed from template
+      operationId: getFeedTemplates
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: List of feed templates
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/FeedTemplate'
+
+  /api/v1/feeds/{id}/test:
+    post:
+      tags: [feeds]
+      summary: Test feed connection
+      description: |
+        Test connectivity to a feed source before creating or after configuration changes.
+
+        **Tests Performed:**
+        - Network connectivity
+        - Authentication credentials
+        - Repository/path accessibility
+        - Permission verification
+
+        **Timeout:** 30 seconds
+      operationId: testFeed
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+          description: Feed identifier
+      responses:
+        200:
+          description: Connection test passed
+          schema:
+            type: object
+            properties:
+              status:
+                type: string
+                example: "success"
+              message:
+                type: string
+                example: "Connection test passed"
+        400:
+          description: Connection test failed
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        404:
+          description: Feed not found
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        500:
+          description: Server error
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+
+  /api/v1/feeds/{id}/enable:
+    post:
+      tags: [feeds]
+      summary: Enable feed
+      description: |
+        Enable a feed for synchronization (manual and scheduled).
+        Disabled feeds are skipped during sync operations.
+      operationId: enableFeed
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+          description: Feed identifier
+      responses:
+        200:
+          description: Feed enabled successfully
+          schema:
+            $ref: '#/definitions/FeedResponse'
+        404:
+          description: Feed not found
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        500:
+          description: Server error
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+
+  /api/v1/feeds/{id}/disable:
+    post:
+      tags: [feeds]
+      summary: Disable feed
+      description: |
+        Disable a feed to prevent synchronization.
+        Useful for temporarily stopping updates without deleting the feed.
+      operationId: disableFeed
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+          description: Feed identifier
+      responses:
+        200:
+          description: Feed disabled successfully
+          schema:
+            $ref: '#/definitions/FeedResponse'
+        404:
+          description: Feed not found
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        500:
+          description: Server error
+          schema:
+            $ref: '#/definitions/ErrorResponse'

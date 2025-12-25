@@ -33,6 +33,9 @@ COPY --from=builder /app/config.yaml .
 COPY --from=builder /app/rules.json .
 COPY --from=builder /app/correlation_rules.json .
 
+# Create data directory for SQLite
+RUN mkdir -p /app/data
+
 # Change ownership
 RUN chown -R cerberus:cerberus /app
 
@@ -42,9 +45,9 @@ USER cerberus
 # Expose ports
 EXPOSE 514/udp 515/tcp 8080 8081
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8081/health || exit 1
+# Health check - Uses readiness probe to verify ClickHouse and SQLite are accessible
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health/ready || exit 1
 
 # Run the binary
 CMD ["./cerberus"]

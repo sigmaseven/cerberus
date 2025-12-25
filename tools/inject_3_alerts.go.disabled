@@ -1,0 +1,189 @@
+package main
+
+import (
+	"log"
+	"strings"
+	"time"
+
+	"cerberus/config"
+	"cerberus/core"
+	"cerberus/storage"
+
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+)
+
+func main() {
+	// Load config
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+
+	// Create logger
+	logger, _ := zap.NewDevelopment()
+	defer logger.Sync()
+	sugar := logger.Sugar()
+
+	// Connect to ClickHouse
+	clickhouse, err := storage.NewClickHouse(cfg, sugar)
+	if err != nil {
+		log.Fatalf("Failed to connect to ClickHouse: %v", err)
+	}
+	defer clickhouse.Close()
+
+	// Create alert storage channel and storage
+	alertCh := make(chan *core.Alert, 10)
+	alertStorage, err := storage.NewClickHouseAlertStorage(clickhouse, cfg, alertCh, sugar)
+	if err != nil {
+		log.Fatalf("Failed to create alert storage: %v", err)
+	}
+
+	log.Println("\n" + strings.Repeat("=", 70))
+	log.Println("E2E TEST: Inserting 3 events and alerts to verify end-to-end flow")
+	log.Println(strings.Repeat("=", 70) + "\n")
+
+	timestamp := time.Now().UTC()
+
+	// Test 1: PsExec Named Pipe Detection
+	event1ID := uuid.New().String()
+	event1 := &core.Event{
+		EventID:      event1ID,
+		Timestamp:    timestamp,
+		IngestedAt:   timestamp,
+		ListenerID:   "e2e-test-listener",
+		ListenerName: "E2E Test Listener",
+		Source:       "e2e-test",
+		SourceFormat: "json",
+		RawData:      `{"EventID": 17, "EventType": "pipe_created", "Computer": "WIN-TEST-01", "PipeName": "\\PSEXESVC", "User": "NT AUTHORITY\\SYSTEM"}`,
+		Fields: map[string]interface{}{
+			"EventID":    17,
+			"EventType":  "pipe_created",
+			"Computer":   "WIN-TEST-01",
+			"PipeName":   "\\PSEXESVC",
+			"User":       "NT AUTHORITY\\SYSTEM",
+			"source_ip":  "192.168.1.100",
+		},
+	}
+
+	alert1 := &core.Alert{
+		AlertID:        uuid.New().String(),
+		RuleID:         "f3f3a972-f982-40ad-b63c-bca6afdfad7c", // PsExec rule
+		EventID:        event1ID,
+		Timestamp:      timestamp,
+		Severity:       "low",
+		Status:         core.AlertStatusNew,
+		Fingerprint:    "psexec-pipe-e2e-test",
+		DuplicateCount: 1,
+		LastSeen:       timestamp,
+		EventIDs:       []string{event1ID},
+		Event:          event1,
+	}
+
+	log.Printf("[1/3] Creating PsExec Named Pipe alert...")
+	log.Printf("  Event ID: %s", event1ID)
+	log.Printf("  Alert ID: %s", alert1.AlertID)
+	if err := alertStorage.InsertAlert(alert1); err != nil {
+		log.Fatalf("Failed to insert alert 1: %v", err)
+	}
+	log.Println("  ✓ Inserted successfully\n")
+	time.Sleep(1 * time.Second)
+
+	// Test 2: PowerShell bXOR Operator Usage
+	event2ID := uuid.New().String()
+	event2 := &core.Event{
+		EventID:      event2ID,
+		Timestamp:    timestamp.Add(1 * time.Second),
+		IngestedAt:   timestamp.Add(1 * time.Second),
+		ListenerID:   "e2e-test-listener",
+		ListenerName: "E2E Test Listener",
+		Source:       "e2e-test",
+		SourceFormat: "json",
+		RawData:      `{"EventID": 4104, "EventType": "ps_classic_start", "Computer": "WIN-TEST-01", "Data": "HostName=ConsoleHost NewEngineState=Available $encoded = $plaintext -bxor 0x42"}`,
+		Fields: map[string]interface{}{
+			"EventID":    4104,
+			"EventType":  "ps_classic_start",
+			"Computer":   "WIN-TEST-01",
+			"Data":       "HostName=ConsoleHost NewEngineState=Available SequenceNumber=13 HostApplication=powershell.exe $encoded = $plaintext -bxor 0x42",
+			"User":       "DOMAIN\\Administrator",
+			"source_ip":  "192.168.1.100",
+		},
+	}
+
+	alert2 := &core.Alert{
+		AlertID:        uuid.New().String(),
+		RuleID:         "812837bb-b17f-45e9-8bd0-0ec35d2e3bd6", // bXOR rule
+		EventID:        event2ID,
+		Timestamp:      timestamp.Add(1 * time.Second),
+		Severity:       "low",
+		Status:         core.AlertStatusNew,
+		Fingerprint:    "powershell-bxor-e2e-test",
+		DuplicateCount: 1,
+		LastSeen:       timestamp.Add(1 * time.Second),
+		EventIDs:       []string{event2ID},
+		Event:          event2,
+	}
+
+	log.Printf("[2/3] Creating PowerShell bXOR Operator alert...")
+	log.Printf("  Event ID: %s", event2ID)
+	log.Printf("  Alert ID: %s", alert2.AlertID)
+	if err := alertStorage.InsertAlert(alert2); err != nil{
+		log.Fatalf("Failed to insert alert 2: %v", err)
+	}
+	log.Println("  ✓ Inserted successfully\n")
+	time.Sleep(1 * time.Second)
+
+	// Test 3: Compress-Archive Cmdlet Execution
+	event3ID := uuid.New().String()
+	event3 := &core.Event{
+		EventID:      event3ID,
+		Timestamp:    timestamp.Add(2 * time.Second),
+		IngestedAt:   timestamp.Add(2 * time.Second),
+		ListenerID:   "e2e-test-listener",
+		ListenerName: "E2E Test Listener",
+		Source:       "e2e-test",
+		SourceFormat: "json",
+		RawData:      `{"EventID": 4104, "EventType": "ps_script", "Computer": "WIN-TEST-01", "ScriptBlockText": "Get-ChildItem C:\\Temp\\*.txt | Compress-Archive -DestinationPath C:\\Temp\\backup.zip"}`,
+		Fields: map[string]interface{}{
+			"EventID":         4104,
+			"EventType":       "ps_script",
+			"Computer":        "WIN-TEST-01",
+			"ScriptBlockText": "Get-ChildItem C:\\Temp\\*.txt | Compress-Archive -DestinationPath C:\\Temp\\backup.zip",
+			"User":            "DOMAIN\\Administrator",
+			"source_ip":       "192.168.1.100",
+		},
+	}
+
+	alert3 := &core.Alert{
+		AlertID:        uuid.New().String(),
+		RuleID:         "6dc5d284-69ea-42cf-9311-fb1c3932a69a", // Compress-Archive rule
+		EventID:        event3ID,
+		Timestamp:      timestamp.Add(2 * time.Second),
+		Severity:       "low",
+		Status:         core.AlertStatusNew,
+		Fingerprint:    "compress-archive-e2e-test",
+		DuplicateCount: 1,
+		LastSeen:       timestamp.Add(2 * time.Second),
+		EventIDs:       []string{event3ID},
+		Event:          event3,
+	}
+
+	log.Printf("[3/3] Creating Compress-Archive Cmdlet alert...")
+	log.Printf("  Event ID: %s", event3ID)
+	log.Printf("  Alert ID: %s", alert3.AlertID)
+	if err := alertStorage.InsertAlert(alert3); err != nil{
+		log.Fatalf("Failed to insert alert 3: %v", err)
+	}
+	log.Println("  ✓ Inserted successfully\n")
+
+	log.Println(strings.Repeat("=", 70))
+	log.Println("✅ E2E TEST COMPLETE")
+	log.Println(strings.Repeat("=", 70))
+	log.Println("\nVerification:")
+	log.Println("1. Check events: curl 'http://localhost:3001/api/v1/events?limit=10'")
+	log.Println("2. Check alerts: curl 'http://localhost:3001/api/v1/alerts?limit=10'")
+	log.Printf("\nExpected Results:")
+	log.Printf("  - 3 events with listener_id='e2e-test-listener'")
+	log.Printf("  - 3 alerts linked to those events")
+	log.Printf("  - Alert IDs: %s, %s, %s\n", alert1.AlertID, alert2.AlertID, alert3.AlertID)
+}

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -21,16 +22,36 @@ import {
   TextField,
   Snackbar,
   TablePagination,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Stack,
 } from '@mui/material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Upload as UploadIcon, Download as DownloadIcon } from '@mui/icons-material';
+import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Upload as UploadIcon, Download as DownloadIcon, Assessment as AssessmentIcon } from '@mui/icons-material';
 import { apiService } from '../../services/api';
-import { Rule, ImportResult } from '../../types';
+import { Rule, ImportResult, RuleCategory, LifecycleStatus, UnifiedRuleResponse } from '../../types';
 import { RuleForm } from '../../components/forms/RuleForm';
 import ExportDialog from '../../components/import-export/ExportDialog';
 import ImportDialog from '../../components/import-export/ImportDialog';
+import { ProtectedComponent } from '../../components/ProtectedComponent';
+
+/**
+ * Extended Rule type with optional lifecycle and performance metadata
+ * These fields may be present on rules returned from the unified API
+ */
+type RuleWithMetadata = Rule & {
+  lifecycle_status?: LifecycleStatus;
+  performance_stats?: {
+    avg_execution_time_ms?: number;
+    total_executions?: number;
+    total_matches?: number;
+  };
+};
 
 function Rules() {
+  const navigate = useNavigate();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -49,29 +70,36 @@ function Rules() {
   });
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [categoryFilter, setCategoryFilter] = useState<RuleCategory>('all');
+  const [lifecycleFilter, setLifecycleFilter] = useState<LifecycleStatus | ''>('');
 
   const queryClient = useQueryClient();
 
-  // Fetch rules from API
-  const { data: paginatedData, isLoading, error } = useQuery({
-    queryKey: ['rules', page, rowsPerPage],
-    queryFn: () => apiService.getRules(page + 1, rowsPerPage), // Backend uses 1-indexed pages
+  // Fetch rules from API using unified endpoint
+  const { data: unifiedData, isLoading, error } = useQuery({
+    queryKey: ['unifiedRules', page, rowsPerPage, categoryFilter, lifecycleFilter],
+    queryFn: () => apiService.getUnifiedRules({
+      category: categoryFilter === 'all' ? undefined : categoryFilter,
+      lifecycle_status: lifecycleFilter || undefined,
+      page: page + 1,
+      limit: rowsPerPage,
+    }),
     refetchInterval: 10000, // Poll every 10 seconds
   });
 
-  const rules = paginatedData?.items || [];
-  const totalRules = paginatedData?.total || 0;
+  const unifiedRules = unifiedData?.items || [];
+  const totalRules = unifiedData?.total || 0;
 
   // Mutations for CRUD operations
   const createMutation = useMutation({
     mutationFn: (rule: Omit<Rule, 'id'>) => apiService.createRule(rule),
     onSuccess: async () => {
       // Wait for the query to refetch before closing the dialog
-      await queryClient.invalidateQueries({ queryKey: ['rules'] });
+      await queryClient.invalidateQueries({ queryKey: ['unifiedRules'] });
       setCreateDialogOpen(false);
       setSnackbar({ open: true, message: 'Rule created successfully', severity: 'success' });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       setSnackbar({ open: true, message: `Failed to create rule: ${error.message}`, severity: 'error' });
     },
   });
@@ -80,11 +108,11 @@ function Rules() {
     mutationFn: ({ id, rule }: { id: string; rule: Partial<Rule> }) => apiService.updateRule(id, rule),
     onSuccess: async () => {
       // Wait for the query to refetch before closing the dialog
-      await queryClient.invalidateQueries({ queryKey: ['rules'] });
+      await queryClient.invalidateQueries({ queryKey: ['unifiedRules'] });
       setEditDialogOpen(false);
       setSnackbar({ open: true, message: 'Rule updated successfully', severity: 'success' });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       setSnackbar({ open: true, message: `Failed to update rule: ${error.message}`, severity: 'error' });
     },
   });
@@ -92,11 +120,11 @@ function Rules() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiService.deleteRule(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['rules'] });
+      queryClient.invalidateQueries({ queryKey: ['unifiedRules'] });
       setDeleteDialogOpen(false);
       setSnackbar({ open: true, message: 'Rule deleted successfully', severity: 'success' });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       setSnackbar({ open: true, message: `Failed to delete rule: ${error.message}`, severity: 'error' });
     },
   });
@@ -117,8 +145,9 @@ function Rules() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       setSnackbar({ open: true, message: 'Rules exported successfully', severity: 'success' });
-    } catch (error: any) {
-      setExportError(error.message || 'Failed to export rules');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to export rules';
+      setExportError(errorMessage);
     } finally {
       setExportLoading(false);
     }
@@ -130,7 +159,7 @@ function Rules() {
 
     try {
       const result: ImportResult = await apiService.importRules(file, conflictResolution);
-      queryClient.invalidateQueries({ queryKey: ['rules'] });
+      queryClient.invalidateQueries({ queryKey: ['unifiedRules'] });
 
       if (result.success) {
         setSnackbar({
@@ -141,14 +170,15 @@ function Rules() {
       } else {
         setImportError(`Import failed: ${result.failedImports} rules failed to import`);
       }
-    } catch (error: any) {
-      setImportError(error.message || 'Failed to import rules');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to import rules';
+      setImportError(errorMessage);
     } finally {
       setImportLoading(false);
     }
   };
 
-  const handleCreateRule = (ruleData: any) => {
+  const handleCreateRule = (ruleData: Omit<Rule, 'id' | 'version'>) => {
     const newRule: Omit<Rule, 'id'> = {
       ...ruleData,
       version: 1,
@@ -156,9 +186,9 @@ function Rules() {
     createMutation.mutate(newRule);
   };
 
-  const handleUpdateRule = (ruleData: any) => {
+  const handleUpdateRule = (ruleData: Omit<Rule, 'id' | 'version'>) => {
     if (selectedRule) {
-      const updatePayload = {
+      const updatePayload: Partial<Rule> = {
         ...ruleData,
         version: selectedRule.version,
       };
@@ -171,21 +201,25 @@ function Rules() {
     }
   };
 
-  const handleToggleEnabled = (rule: Rule) => {
+  const handleToggleEnabled = (unifiedRule: UnifiedRuleResponse) => {
+    const rule = unifiedRule.rule as Rule;
     updateMutation.mutate({
       id: rule.id,
       rule: { enabled: !rule.enabled },
     });
   };
 
-  const handleEditRule = (rule: Rule) => {
+  const handleEditRule = (unifiedRule: UnifiedRuleResponse) => {
+    const rule = unifiedRule.rule as Rule;
     // Always get the latest version from the query cache, not the stale closure
-    const latestRule = rules?.find(r => r.id === rule.id) || rule;
+    const latestUnified = unifiedRules?.find(ur => (ur.rule as Rule).id === rule.id);
+    const latestRule = latestUnified ? (latestUnified.rule as Rule) : rule;
     setSelectedRule(latestRule);
     setEditDialogOpen(true);
   };
 
-  const handleDeleteRule = (rule: Rule) => {
+  const handleDeleteRule = (unifiedRule: UnifiedRuleResponse) => {
+    const rule = unifiedRule.rule as Rule;
     setSelectedRule(rule);
     setDeleteDialogOpen(true);
   };
@@ -196,7 +230,7 @@ function Rules() {
     }
   };
 
-  const getSeverityColor = (severity: string) => {
+  const getSeverityColor = (severity: string): 'error' | 'warning' | 'info' | 'default' => {
     switch (severity) {
       case 'Critical':
         return 'error';
@@ -211,10 +245,49 @@ function Rules() {
     }
   };
 
-  const filteredRules = rules?.filter((rule) =>
-    rule.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    rule.description.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const getCategoryColor = (category: RuleCategory): 'primary' | 'secondary' | 'default' => {
+    switch (category) {
+      case 'detection':
+        return 'primary'; // blue
+      case 'correlation':
+        return 'secondary'; // purple
+      default:
+        return 'default';
+    }
+  };
+
+  const getLifecycleColor = (status: LifecycleStatus | undefined): 'success' | 'info' | 'warning' | 'error' | 'default' => {
+    switch (status) {
+      case 'stable':
+        return 'success'; // green
+      case 'test':
+        return 'info'; // blue
+      case 'experimental':
+        return 'warning'; // yellow
+      case 'deprecated':
+        return 'error'; // red
+      case 'active':
+        return 'success'; // green
+      default:
+        return 'default';
+    }
+  };
+
+  const getLogsourceInfo = (rule: Rule) => {
+    if (!rule.logsource) return { category: '-', product: '-', service: '-' };
+    const logsource = rule.logsource as Record<string, unknown>;
+    return {
+      category: (logsource.category as string) || '-',
+      product: (logsource.product as string) || '-',
+      service: (logsource.service as string) || '-',
+    };
+  };
+
+  const filteredRules = unifiedRules?.filter((unifiedRule) => {
+    const rule = unifiedRule.rule as Rule;
+    return rule.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      rule.description.toLowerCase().includes(searchTerm.toLowerCase());
+  });
 
   if (isLoading) {
     return (
@@ -238,133 +311,284 @@ function Rules() {
         Detection Rules
       </Typography>
 
-       <Box sx={{
-         mb: 3,
-         display: 'flex',
-         flexDirection: { xs: 'column', sm: 'row' },
-         gap: 2,
-         alignItems: { xs: 'stretch', sm: 'center' }
-       }}>
-         <Button
-           variant="contained"
-           color="primary"
-           startIcon={<AddIcon />}
-           onClick={() => setCreateDialogOpen(true)}
-           fullWidth={{ xs: true, sm: false }}
-         >
-           Create Rule
-         </Button>
+      {/* Action Buttons Row */}
+      <Box sx={{
+        mb: 2,
+        display: 'flex',
+        flexDirection: { xs: 'column', sm: 'row' },
+        gap: 2,
+        alignItems: { xs: 'stretch', sm: 'center' }
+      }}>
+        {/* TASK 3.6: Protect Create Rule button with write:rules permission */}
+        <ProtectedComponent permission="write:rules">
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<AddIcon />}
+            onClick={() => setCreateDialogOpen(true)}
+            fullWidth={{ xs: true, sm: false }}
+          >
+            Create Rule
+          </Button>
+        </ProtectedComponent>
 
-         <Button
-           variant="outlined"
-           startIcon={<UploadIcon />}
-           onClick={() => setImportDialogOpen(true)}
-           fullWidth={{ xs: true, sm: false }}
-         >
-           Import
-         </Button>
+        <Button
+          variant="outlined"
+          startIcon={<UploadIcon />}
+          onClick={() => setImportDialogOpen(true)}
+          fullWidth={{ xs: true, sm: false }}
+        >
+          Import
+        </Button>
 
-         <Button
-           variant="outlined"
-           startIcon={<DownloadIcon />}
-           onClick={() => setExportDialogOpen(true)}
-           fullWidth={{ xs: true, sm: false }}
-         >
-           Export
-         </Button>
+        <Button
+          variant="outlined"
+          startIcon={<DownloadIcon />}
+          onClick={() => setExportDialogOpen(true)}
+          fullWidth={{ xs: true, sm: false }}
+        >
+          Export
+        </Button>
 
-         <TextField
+        <Button
+          variant="outlined"
+          startIcon={<AssessmentIcon />}
+          onClick={() => navigate('/rules/performance')}
+          fullWidth={{ xs: true, sm: false }}
+          sx={{ ml: { sm: 'auto' } }}
+        >
+          Performance
+        </Button>
+      </Box>
+
+      {/* Filter Controls Row */}
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        spacing={2}
+        sx={{ mb: 3 }}
+      >
+        <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 150 } }}>
+          <InputLabel id="category-filter-label">Category</InputLabel>
+          <Select
+            labelId="category-filter-label"
+            value={categoryFilter}
+            onChange={(e) => {
+              setCategoryFilter(e.target.value as RuleCategory);
+              setPage(0); // Reset to first page when filter changes
+            }}
+            label="Category"
+            aria-label="Filter rules by category"
+          >
+            <MenuItem value="all">All</MenuItem>
+            <MenuItem value="detection">Detection</MenuItem>
+            <MenuItem value="correlation">Correlation</MenuItem>
+          </Select>
+        </FormControl>
+
+        <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 150 } }}>
+          <InputLabel id="lifecycle-filter-label">Lifecycle</InputLabel>
+          <Select
+            labelId="lifecycle-filter-label"
+            value={lifecycleFilter}
+            onChange={(e) => {
+              setLifecycleFilter(e.target.value as LifecycleStatus | '');
+              setPage(0); // Reset to first page when filter changes
+            }}
+            label="Lifecycle"
+            aria-label="Filter rules by lifecycle status"
+          >
+            <MenuItem value="">All</MenuItem>
+            <MenuItem value="experimental">Experimental</MenuItem>
+            <MenuItem value="test">Test</MenuItem>
+            <MenuItem value="stable">Stable</MenuItem>
+            <MenuItem value="active">Active</MenuItem>
+            <MenuItem value="deprecated">Deprecated</MenuItem>
+          </Select>
+        </FormControl>
+
+        <TextField
           label="Search rules"
           variant="outlined"
           size="small"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          sx={{ minWidth: { xs: '100%', sm: 250 } }}
-          fullWidth={{ xs: true, sm: false }}
+          sx={{ minWidth: { xs: '100%', sm: 250 }, flex: 1 }}
+          aria-label="Search rules by name or description"
         />
-      </Box>
+      </Stack>
 
       <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
         <Table>
-           <TableHead>
-             <TableRow>
-               <TableCell>Rule Details</TableCell>
-               <TableCell>Conditions</TableCell>
-               <TableCell>Actions</TableCell>
-             </TableRow>
-           </TableHead>
+          <TableHead>
+            <TableRow>
+              <TableCell>Rule Details</TableCell>
+              <TableCell>Category</TableCell>
+              <TableCell>Lifecycle</TableCell>
+              <TableCell>Logsource</TableCell>
+              <TableCell>Conditions</TableCell>
+              <TableCell>Avg Eval Time</TableCell>
+              <TableCell>Actions</TableCell>
+            </TableRow>
+          </TableHead>
           <TableBody>
-             {filteredRules?.map((rule) => (
-               <TableRow key={rule.id}>
-                 <TableCell sx={{ minWidth: 300 }}>
-                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-                     <Typography variant="body2" sx={{ fontWeight: 500, minWidth: 120 }}>
-                       {rule.name}
-                     </Typography>
-                     <Chip
-                       label={rule.severity}
-                       color={getSeverityColor(rule.severity) as any}
-                       size="small"
-                     />
-                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                       <Typography variant="body2" color="textSecondary">
-                         Enabled:
-                       </Typography>
-                       <Switch
-                         checked={rule.enabled}
-                         onChange={() => handleToggleEnabled(rule)}
-                         size="small"
-                       />
-                     </Box>
-                   </Box>
-                   <Box sx={{
-                     overflow: 'hidden',
-                     textOverflow: 'ellipsis',
-                     whiteSpace: { xs: 'nowrap', sm: 'normal' }
-                   }}>
-                     <Typography variant="body2" color="textSecondary">
-                       {rule.description}
-                     </Typography>
-                   </Box>
-                 </TableCell>
-                 <TableCell sx={{ minWidth: 100 }}>
-                   <Chip
-                     label={`${rule.conditions.length} condition${rule.conditions.length !== 1 ? 's' : ''}`}
-                     size="small"
-                     variant="outlined"
-                   />
-                 </TableCell>
-                 <TableCell sx={{ minWidth: 160 }}>
-                   <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                     <Button
-                       size="small"
-                       variant="outlined"
-                       startIcon={<EditIcon />}
-                       onClick={() => handleEditRule(rule)}
-                       sx={{
-                         color: '#00ff00',
-                         borderColor: '#00ff00',
-                         '&:hover': {
-                           borderColor: '#00cc00',
-                           backgroundColor: 'rgba(0, 255, 0, 0.08)',
-                         },
-                       }}
-                     >
-                       Edit
-                     </Button>
-                     <Button
-                       size="small"
-                       variant="outlined"
-                       color="error"
-                       startIcon={<DeleteIcon />}
-                       onClick={() => handleDeleteRule(rule)}
-                     >
-                       Delete
-                     </Button>
-                   </Box>
-                 </TableCell>
-               </TableRow>
-             ))}
+            {filteredRules?.map((unifiedRule) => {
+              const rule = unifiedRule.rule as Rule;
+              const category = unifiedRule.category;
+              const logsource = getLogsourceInfo(rule);
+
+              return (
+                <TableRow key={rule.id}>
+                  <TableCell sx={{ minWidth: 300 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500, minWidth: 120 }}>
+                        {rule.name}
+                      </Typography>
+                      <Chip
+                        label={rule.severity}
+                        color={getSeverityColor(rule.severity)}
+                        size="small"
+                      />
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" color="textSecondary">
+                          Enabled:
+                        </Typography>
+                        <Switch
+                          checked={rule.enabled}
+                          onChange={() => handleToggleEnabled(unifiedRule)}
+                          size="small"
+                        />
+                      </Box>
+                    </Box>
+                    <Box sx={{
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: { xs: 'nowrap', sm: 'normal' }
+                    }}>
+                      <Typography variant="body2" color="textSecondary">
+                        {rule.description}
+                      </Typography>
+                    </Box>
+                  </TableCell>
+                  <TableCell sx={{ minWidth: 120 }}>
+                    <Chip
+                      label={category === 'detection' ? 'Detection' : 'Correlation'}
+                      color={getCategoryColor(category)}
+                      size="small"
+                    />
+                  </TableCell>
+                  <TableCell sx={{ minWidth: 120 }}>
+                    {(rule as RuleWithMetadata).lifecycle_status ? (
+                      <Chip
+                        label={(rule as RuleWithMetadata).lifecycle_status}
+                        color={getLifecycleColor((rule as RuleWithMetadata).lifecycle_status)}
+                        size="small"
+                        sx={{ textTransform: 'capitalize' }}
+                      />
+                    ) : (
+                      <Typography variant="body2" color="textSecondary">
+                        -
+                      </Typography>
+                    )}
+                  </TableCell>
+                  <TableCell sx={{ minWidth: 180 }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                      {logsource.category !== '-' && (
+                        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                          <Typography variant="caption" color="textSecondary" sx={{ minWidth: 60 }}>
+                            Category:
+                          </Typography>
+                          <Chip
+                            label={logsource.category}
+                            size="small"
+                            variant="outlined"
+                            sx={{ height: 20, fontSize: '0.7rem' }}
+                          />
+                        </Box>
+                      )}
+                      {logsource.product !== '-' && (
+                        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                          <Typography variant="caption" color="textSecondary" sx={{ minWidth: 60 }}>
+                            Product:
+                          </Typography>
+                          <Chip
+                            label={logsource.product}
+                            size="small"
+                            variant="outlined"
+                            sx={{ height: 20, fontSize: '0.7rem' }}
+                          />
+                        </Box>
+                      )}
+                      {logsource.service !== '-' && (
+                        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                          <Typography variant="caption" color="textSecondary" sx={{ minWidth: 60 }}>
+                            Service:
+                          </Typography>
+                          <Chip
+                            label={logsource.service}
+                            size="small"
+                            variant="outlined"
+                            sx={{ height: 20, fontSize: '0.7rem' }}
+                          />
+                        </Box>
+                      )}
+                      {logsource.category === '-' && logsource.product === '-' && logsource.service === '-' && (
+                        <Typography variant="body2" color="textSecondary">
+                          -
+                        </Typography>
+                      )}
+                    </Box>
+                  </TableCell>
+                  <TableCell sx={{ minWidth: 100 }}>
+                    <Chip
+                      label={`${rule.conditions?.length || 0} condition${(rule.conditions?.length || 0) !== 1 ? 's' : ''}`}
+                      size="small"
+                      variant="outlined"
+                    />
+                  </TableCell>
+                  <TableCell sx={{ minWidth: 100 }}>
+                    {(rule as RuleWithMetadata).performance_stats?.avg_execution_time_ms !== undefined ? (
+                      <Typography variant="body2">
+                        {(rule as RuleWithMetadata).performance_stats.avg_execution_time_ms.toFixed(2)} ms
+                      </Typography>
+                    ) : (
+                      <Typography variant="body2" color="textSecondary">
+                        -
+                      </Typography>
+                    )}
+                  </TableCell>
+                  <TableCell sx={{ minWidth: 160 }}>
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                      {/* TASK 3.6: Protect Edit button with write:rules permission */}
+                      <ProtectedComponent permission="write:rules">
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="primary"
+                          startIcon={<EditIcon />}
+                          onClick={() => handleEditRule(unifiedRule)}
+                          aria-label={`Edit rule ${rule.name}`}
+                        >
+                          Edit
+                        </Button>
+                      </ProtectedComponent>
+                      {/* TASK 3.6: Protect Delete button with write:rules permission */}
+                      <ProtectedComponent permission="write:rules">
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="error"
+                          startIcon={<DeleteIcon />}
+                          onClick={() => handleDeleteRule(unifiedRule)}
+                          aria-label={`Delete rule ${rule.name}`}
+                        >
+                          Delete
+                        </Button>
+                      </ProtectedComponent>
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
         <TablePagination
@@ -448,15 +672,26 @@ function Rules() {
       {/* Snackbar for notifications */}
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={4000}
+        autoHideDuration={snackbar.severity === 'error' ? 10000 : 4000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
         <Alert
           onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
-          sx={{ width: '100%' }}
+          sx={{
+            width: '100%',
+            maxWidth: snackbar.severity === 'error' ? '600px' : '400px',
+            '& .MuiAlert-message': {
+              whiteSpace: 'pre-wrap',
+              fontFamily: snackbar.severity === 'error' ? 'monospace' : 'inherit',
+              fontSize: snackbar.severity === 'error' ? '0.85rem' : 'inherit',
+              maxHeight: '300px',
+              overflow: 'auto',
+            }
+          }}
         >
-          {snackbar.message}
+          {snackbar.message.replace(/\\n/g, '\n').replace(/\\t/g, '\t')}
         </Alert>
       </Snackbar>
     </Box>

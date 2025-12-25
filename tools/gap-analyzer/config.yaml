@@ -1,0 +1,85 @@
+# Gap Analyzer Configuration File
+# Automated requirements-to-test-coverage gap analysis tool
+
+requirements:
+  # Directory containing requirement documents
+  directory: "docs/requirements"
+
+  # File patterns to match (glob patterns)
+  patterns:
+    - "*.md"
+
+  # Regular expressions for requirement ID patterns
+  # These patterns are used to extract requirement IDs from documents
+  id_patterns:
+    - "FR-[A-Z]+-[0-9]+"       # Functional requirements (e.g., FR-API-001)
+    - "NFR-[A-Z]+-[0-9]+"      # Non-functional requirements (e.g., NFR-PERF-001)
+    - "REQ-[A-Z0-9]+"          # Generic requirements (e.g., REQ-SEC-001)
+    - "[A-Z]+-[0-9]+"          # Simple pattern (e.g., ALERT-001)
+
+  # Priority keyword mappings
+  # Requirements containing these keywords are assigned the corresponding priority
+  priority_keywords:
+    P0:
+      - "CRITICAL"
+      - "SECURITY"
+      - "BLOCKING"
+      - "MUST"
+      - "SHALL"
+      - "PRODUCTION"
+      - "COMPLIANCE"
+    P1:
+      - "HIGH"
+      - "SHOULD"
+      - "IMPORTANT"
+      - "REQUIRED"
+    P2:
+      - "MEDIUM"
+      - "MAY"
+      - "RECOMMENDED"
+      - "DESIRED"
+    P3:
+      - "LOW"
+      - "NICE TO HAVE"
+      - "OPTIONAL"
+      - "FUTURE"
+
+tests:
+  # Directories to search for test files (relative to project root)
+  directories:
+    - "."
+
+  # Test file patterns (glob patterns)
+  patterns:
+    - "*_test.go"
+    - "*_test.go.disabled"
+
+  # Patterns indicating test coverage comments
+  # These are used to extract explicit requirement IDs from test comments
+  coverage_comment_patterns:
+    - "// Covers: "
+    - "// Tests: "
+    - "// Validates: "
+    - "// Verifies: "
+    - "// REQUIREMENT: "
+    - "// Covers "
+
+coverage:
+  # Minimum acceptable coverage percentage
+  minimum_percentage: 80
+
+  # Fail if any P0 requirements have gaps
+  fail_on_p0_gaps: true
+
+  # Fail if new gaps are introduced (compared to baseline)
+  fail_on_new_gaps: false
+
+output:
+  # Output file paths (relative to project root)
+  markdown: "REQUIREMENTS_GAP_ANALYSIS.md"
+  json: "gap-analysis.json"
+  yaml: "gap-analysis.yaml"
+  badge: "coverage-badge.json"
+
+  # History directory for tracking coverage trends
+  history: ".gap-analysis-history"

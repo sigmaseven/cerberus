@@ -13,8 +13,7 @@ const mockWebSocket = {
   onopen: null as any,
   onmessage: null as any,
   onclose: null as any,
-  onerror: null as any,
-};
+  onerror: null as any};
 
 global.WebSocket = vi.fn().mockImplementation(() => mockWebSocket);
 

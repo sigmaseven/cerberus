@@ -1,13 +1,12 @@
 package ingest
 
 import (
+	"cerberus/config"
 	"cerberus/core"
 	"go.uber.org/zap"
 )
 
-const (
-	udpBufferSize = 65536
-)
+// TASK 138: Removed unused udpBufferSize constant
 
 // SyslogListener listens for Syslog messages over TCP/UDP
 type SyslogListener struct {
@@ -18,6 +17,13 @@ type SyslogListener struct {
 func NewSyslogListener(host string, port int, rateLimit int, eventCh chan<- *core.Event, logger *zap.SugaredLogger) *SyslogListener {
 	return &SyslogListener{
 		BaseListener: NewBaseListener(host, port, rateLimit, eventCh, logger),
+	}
+}
+
+// NewSyslogListenerWithConfig creates a new Syslog listener with config
+func NewSyslogListenerWithConfig(host string, port int, rateLimit int, eventCh chan<- *core.Event, logger *zap.SugaredLogger, cfg *config.Config) *SyslogListener {
+	return &SyslogListener{
+		BaseListener: NewBaseListenerWithConfig(host, port, rateLimit, eventCh, logger, cfg),
 	}
 }
 

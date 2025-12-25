@@ -1,0 +1,231 @@
+package tests
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"cerberus/api"
+	"cerberus/config"
+	"cerberus/core"
+	"cerberus/storage"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+)
+
+// IntegrationTestSuite holds the test server and clients
+type IntegrationTestSuite struct {
+	server   *httptest.Server
+	client   *http.Client
+	baseURL  string
+	logger   *zap.SugaredLogger
+}
+
+// SetupIntegrationTest creates a test server with all components
+func SetupIntegrationTest(t *testing.T) *IntegrationTestSuite {
+	logger := zap.NewNop().Sugar()
+
+	// Create minimal config for testing
+	cfg := &config.Config{}
+	cfg.API.Port = 0 // Use random port
+	cfg.Auth.JWTExpiry = 3600
+	cfg.Security.JSONBodyLimit = 1048576 // 1MB
+
+	// Create mock storages
+	eventStorage := storage.NewMockEventStorage()
+	alertStorage := storage.NewMockAlertStorage()
+	ruleStorage := storage.NewMockRuleStorage()
+	actionStorage := storage.NewMockActionStorage()
+	correlationRuleStorage := storage.NewMockCorrelationRuleStorage()
+
+	storages := &api.Storages{
+		EventStorage:           eventStorage,
+		AlertStorage:           alertStorage,
+		RuleStorage:            ruleStorage,
+		ActionStorage:          actionStorage,
+		CorrelationRuleStorage: correlationRuleStorage,
+		MongoDB:                nil, // No MongoDB for integration tests
+	}
+
+	// Create API server
+	apiServer := api.NewAPI(storages, cfg, logger)
+
+	// Create test server
+	server := httptest.NewServer(apiServer.Router())
+
+	return &IntegrationTestSuite{
+		server:  server,
+		client:  &http.Client{Timeout: 10 * time.Second},
+		baseURL: server.URL + "/api/v1",
+		logger:  logger,
+	}
+}
+
+// Teardown cleans up the test server
+func (s *IntegrationTestSuite) Teardown() {
+	s.server.Close()
+}
+
+// makeRequest is a helper to make HTTP requests
+func (s *IntegrationTestSuite) makeRequest(t *testing.T, method, path string, body interface{}, expectedStatus int) *http.Response {
+	var reqBody *bytes.Buffer
+	if body != nil {
+		jsonBody, err := json.Marshal(body)
+		require.NoError(t, err)
+		reqBody = bytes.NewBuffer(jsonBody)
+	} else {
+		reqBody = bytes.NewBuffer(nil)
+	}
+
+	req, err := http.NewRequest(method, s.baseURL+path, reqBody)
+	require.NoError(t, err)
+
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	resp, err := s.client.Do(req)
+	require.NoError(t, err)
+
+	assert.Equal(t, expectedStatus, resp.StatusCode, fmt.Sprintf("Expected status %d for %s %s", expectedStatus, method, path))
+
+	return resp
+}
+
+// TestSecurityWorkflowIntegration tests end-to-end security workflows
+func TestSecurityWorkflowIntegration(t *testing.T) {
+	suite := SetupIntegrationTest(t)
+	defer suite.Teardown()
+
+	t.Run("HealthCheck", func(t *testing.T) {
+		resp := suite.makeRequest(t, "GET", "/health", nil, http.StatusOK)
+		defer resp.Body.Close()
+
+		var health map[string]interface{}
+		err := json.NewDecoder(resp.Body).Decode(&health)
+		require.NoError(t, err)
+		assert.Equal(t, "healthy", health["status"])
+	})
+
+	t.Run("CORSHeaders", func(t *testing.T) {
+		req, err := http.NewRequest("OPTIONS", suite.baseURL+"/events", nil)
+		require.NoError(t, err)
+		req.Header.Set("Origin", "http://localhost:3000")
+
+		resp, err := suite.client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		// Should get blocked since no allowed origins configured
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+
+	t.Run("InputValidation", func(t *testing.T) {
+		// Test oversized JSON body
+		largeBody := make(map[string]interface{})
+		largeBody["data"] = string(make([]byte, 2*1024*1024)) // 2MB > 1MB limit
+
+		resp := suite.makeRequest(t, "POST", "/rules", largeBody, http.StatusBadRequest)
+		defer resp.Body.Close()
+	})
+
+	t.Run("RuleManagementWorkflow", func(t *testing.T) {
+		// Create a rule
+		rule := core.Rule{
+			Name:        "Test Rule",
+			Description: "Integration test rule",
+			Enabled:     true,
+			Severity:    "medium",
+			Conditions: []core.Condition{
+				{
+					Field:    "event_type",
+					Operator: "equals",
+					Value:    "test_event",
+				},
+			},
+		}
+
+		// Create rule
+		resp := suite.makeRequest(t, "POST", "/rules", rule, http.StatusUnauthorized) // Should require auth
+		defer resp.Body.Close()
+
+		// For now, just test that endpoints exist and return expected auth errors
+		// In a full integration test with auth, we'd login first
+	})
+
+	t.Run("EventIngestionWorkflow", func(t *testing.T) {
+		event := core.Event{
+			EventID:   "test-123",
+			EventType: "test_event",
+			Timestamp: time.Now(),
+			SourceIP:  "integration_test",
+			Fields: map[string]interface{}{
+				"message": "test event",
+				"level":   "info",
+			},
+		}
+
+		// This should fail with auth, but tests that the endpoint exists
+		resp := suite.makeRequest(t, "POST", "/events", event, http.StatusUnauthorized)
+		defer resp.Body.Close()
+	})
+
+	t.Run("DashboardStats", func(t *testing.T) {
+		resp := suite.makeRequest(t, "GET", "/dashboard", nil, http.StatusUnauthorized)
+		defer resp.Body.Close()
+	})
+
+	t.Run("SearchValidation", func(t *testing.T) {
+		searchReq := map[string]interface{}{
+			"query": "event_type:test*",
+			"limit": 100,
+		}
+
+		resp := suite.makeRequest(t, "POST", "/search/validate", searchReq, http.StatusOK)
+		defer resp.Body.Close()
+
+		var result map[string]interface{}
+		err := json.NewDecoder(resp.Body).Decode(&result)
+		require.NoError(t, err)
+		assert.Contains(t, result, "valid")
+	})
+}
+
+// TestErrorHandling tests that errors are properly sanitized
+func TestErrorHandling(t *testing.T) {
+	suite := SetupIntegrationTest(t)
+	defer suite.Teardown()
+
+	// Test invalid JSON
+	resp := suite.makeRequest(t, "POST", "/rules", "invalid json", http.StatusBadRequest)
+	defer resp.Body.Close()
+
+	var errorResp map[string]interface{}
+	err := json.NewDecoder(resp.Body).Decode(&errorResp)
+	require.NoError(t, err)
+
+	// Should get sanitized error message
+	assert.Contains(t, errorResp, "error")
+	assert.NotContains(t, errorResp["error"], "panic") // Should not leak internal details
+}
+
+// TestRateLimiting tests that rate limiting is enforced
+func TestRateLimiting(t *testing.T) {
+	suite := SetupIntegrationTest(t)
+	defer suite.Teardown()
+
+	// Make multiple requests quickly
+	for i := 0; i < 10; i++ {
+		resp := suite.makeRequest(t, "GET", "/health", nil, http.StatusOK)
+		resp.Body.Close()
+		time.Sleep(10 * time.Millisecond) // Small delay
+	}
+
+	// This test would need proper rate limiting configuration to fully test
+	// For now, just ensure the endpoint responds
+}

@@ -1,0 +1,42 @@
+name: "SSH Brute Force Attack"
+description: "Simulates brute force attack followed by successful compromise"
+duration: 60s
+target_ip: "203.0.113.50"
+target_username: "admin"
+
+events:
+  # Stage 1: Multiple failed authentication attempts
+  - type: authentication
+    count: 50
+    interval: 1s
+    fields:
+      event_type: authentication
+      source_ip: "${TARGET_IP}"
+      username: "${TARGET_USERNAME}"
+      auth_result: failed
+      auth_method: password
+      dest_host: "server-prod-01"
+
+  # Stage 2: Successful login after brute force
+  - type: authentication
+    count: 1
+    delay: 55s
+    fields:
+      event_type: authentication
+      source_ip: "${TARGET_IP}"
+      username: "${TARGET_USERNAME}"
+      auth_result: success
+      auth_method: password
+      dest_host: "server-prod-01"
+
+expected_alerts:
+  - rule_id: failed_login_brute_force
+    severity: high
+    min_count: 1
+  - rule_id: brute_force_then_success
+    severity: critical
+    min_count: 1
+
+validation:
+  timeout: 120s
+  check_interval: 5s

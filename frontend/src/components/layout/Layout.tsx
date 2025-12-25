@@ -28,12 +28,29 @@ import {
   Router as ListenersIcon,
   AccountCircle as AccountIcon,
   Brightness4 as ThemeIcon,
+  Transform as FieldMappingsIcon,
+  Gavel as InvestigationsIcon,
+  Security as MitreIcon,
+  GridOn as MitreMatrixIcon,
+  MenuBook as MitreKBIcon,
+  Psychology as MLIcon,
+  Settings as SettingsIcon,
 } from '@mui/icons-material';
 import { useUiStore } from '../../stores/ui';
+import { useAuth } from '../../contexts/AuthContext';
+import { hasPermission, getRoleDisplayName, Permission } from '../../utils/permissions';
+import { Chip } from '@mui/material';
 
 const drawerWidth = 280;
 
-const navigationItems = [
+interface NavigationItem {
+  text: string;
+  icon: React.ReactNode;
+  path: string;
+  permission?: Permission; // TASK 3.6: Optional permission requirement
+}
+
+const navigationItems: NavigationItem[] = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
   { text: 'Alerts', icon: <AlertsIcon />, path: '/alerts' },
   { text: 'Events', icon: <EventsIcon />, path: '/events' },
@@ -41,17 +58,41 @@ const navigationItems = [
   { text: 'Rules', icon: <RulesIcon />, path: '/rules' },
   { text: 'Correlation Rules', icon: <CorrelationRulesIcon />, path: '/correlation-rules' },
   { text: 'Actions', icon: <ActionsIcon />, path: '/actions' },
-  { text: 'Listeners', icon: <ListenersIcon />, path: '/listeners' },
+  { text: 'Listeners', icon: <ListenersIcon />, path: '/listeners', permission: 'read:listeners' },
+  { text: 'Field Mappings', icon: <FieldMappingsIcon />, path: '/field-mappings' },
+  { text: 'Investigations', icon: <InvestigationsIcon />, path: '/investigations' },
+  { text: 'MITRE Coverage', icon: <MitreIcon />, path: '/mitre-coverage' },
+  { text: 'MITRE Matrix', icon: <MitreMatrixIcon />, path: '/mitre-matrix' },
+  { text: 'MITRE Knowledge Base', icon: <MitreKBIcon />, path: '/mitre-kb' },
+  { text: 'ML', icon: <MLIcon />, path: '/ml' },
+  // TASK 3.6: User Management requires write:users permission
+  { text: 'User Management', icon: <AccountIcon />, path: '/users', permission: 'write:users' },
+  { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
 ];
 
 function Layout({ page }: { page: React.ReactNode }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { sidebarOpen, setSidebarOpen } = useUiStore();
+  const { permissions, roleName, authEnabled, username } = useAuth(); // TASK 3.6: Get permissions
 
   const handleDrawerToggle = () => {
     setSidebarOpen(!sidebarOpen);
   };
+
+  // TASK 3.6: Filter navigation items based on permissions
+  const visibleNavigationItems = navigationItems.filter((item) => {
+    // If auth is disabled, show all items
+    if (!authEnabled) {
+      return true;
+    }
+    // If no permission required, show item
+    if (!item.permission) {
+      return true;
+    }
+    // Check if user has required permission
+    return hasPermission(permissions, item.permission);
+  });
 
   const drawer = (
     <div>
@@ -62,7 +103,7 @@ function Layout({ page }: { page: React.ReactNode }) {
       </Toolbar>
       <Divider />
       <List>
-        {navigationItems.map((item) => (
+        {visibleNavigationItems.map((item) => (
           <ListItem key={item.text} disablePadding>
             <ListItemButton component={Link} to={item.path}>
               <ListItemIcon>
@@ -119,7 +160,22 @@ function Layout({ page }: { page: React.ReactNode }) {
           >
             Cerberus
           </Typography>
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            {/* TASK 3.6: Display user role badge if authenticated */}
+            {authEnabled && roleName && (
+              <Chip
+                label={getRoleDisplayName(roleName)}
+                size="small"
+                color="default"
+                sx={{ color: 'inherit', borderColor: 'rgba(255, 255, 255, 0.3)' }}
+                variant="outlined"
+              />
+            )}
+            {authEnabled && username && (
+              <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' } }}>
+                {username}
+              </Typography>
+            )}
             <IconButton color="inherit" size="small">
               <ThemeIcon />
             </IconButton>

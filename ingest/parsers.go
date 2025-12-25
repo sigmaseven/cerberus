@@ -58,7 +58,9 @@ func sanitizeFields(fields map[string]interface{}, depth int) error {
 func ParseSyslog(raw string) (*core.Event, error) {
 	event := core.NewEvent()
 	event.SourceFormat = "syslog"
-	event.RawData = raw
+	// For non-JSON formats, JSON-encode the string to make it valid JSON
+	rawJSON, _ := json.Marshal(raw)
+	event.RawData = rawJSON
 
 	event.Fields = map[string]interface{}{
 		"raw": raw,
@@ -122,7 +124,9 @@ func getSeverityFromCEFCode(code int) string {
 func ParseCEF(raw string) (*core.Event, error) {
 	event := core.NewEvent()
 	event.SourceFormat = "cef"
-	event.RawData = raw
+	// For non-JSON formats, JSON-encode the string to make it valid JSON
+	rawJSON, _ := json.Marshal(raw)
+	event.RawData = rawJSON
 
 	// CEF format: CEF:Version|Device Vendor|Device Product|Device Version|Device Event Class ID|Name|Severity|Extension
 	parts := strings.SplitN(raw, "|", 8)
@@ -132,7 +136,7 @@ func ParseCEF(raw string) (*core.Event, error) {
 
 	severityCode, err := strconv.Atoi(parts[6])
 	if err != nil {
-		severityCode = 6 // default to info
+		severityCode = 10 // default to info (index 10 in cefSeverities array)
 	}
 	event.Fields = map[string]interface{}{
 		"cef_version":    strings.TrimPrefix(parts[0], "CEF:"),
@@ -164,7 +168,8 @@ func ParseCEF(raw string) (*core.Event, error) {
 func ParseJSON(raw string) (*core.Event, error) {
 	event := core.NewEvent()
 	event.SourceFormat = "json"
-	event.RawData = raw
+	// For JSON input, the raw string is already valid JSON - store directly
+	event.RawData = json.RawMessage(raw)
 
 	var data map[string]interface{}
 	if err := json.Unmarshal([]byte(raw), &data); err != nil {
@@ -175,8 +180,19 @@ func ParseJSON(raw string) (*core.Event, error) {
 	if err := sanitizeFields(event.Fields, 0); err != nil {
 		return nil, err
 	}
-	if et, ok := data["event_type"].(string); ok {
+	// Check multiple common field names for event type
+	// SIGMA rules use logsource.category, but events may use various field names
+	if et, ok := data["event_type"].(string); ok && et != "" {
 		event.EventType = et
+	} else if cat, ok := data["Category"].(string); ok && cat != "" {
+		// SIGMA standard Category field (used by Sysmon-style events)
+		event.EventType = cat
+	} else if cat, ok := data["category"].(string); ok && cat != "" {
+		// Lowercase variant
+		event.EventType = cat
+	} else if cat, ok := data["logsource_category"].(string); ok && cat != "" {
+		// Explicit logsource category tag
+		event.EventType = cat
 	}
 	if sev, ok := data["severity"].(string); ok {
 		event.Severity = sev

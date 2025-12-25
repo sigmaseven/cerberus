@@ -1,0 +1,64 @@
+name: "Windows Persistence Attempt"
+description: "Attacker creates user and malicious service for persistence"
+duration: 120s
+attacker_user: "system"
+backdoor_user: "svc_backup"
+service_name: "WindowsUpdateService"
+target_host: "APP01.corp.local"
+
+events:
+  # Stage 1: Create service account
+  - type: windows_user_account_created
+    count: 1
+    fields:
+      event_type: windows_user_account_created
+      event_id: 4720
+      computer_name: "${TARGET_HOST}"
+      target_user: "${BACKDOOR_USER}"
+      subject_user: "${ATTACKER_USER}"
+      account_expires: "Never"
+
+  # Stage 2: Add to local administrators
+  - type: windows_group_membership_changed
+    count: 1
+    delay: 15s
+    fields:
+      event_type: windows_group_membership_changed
+      event_id: 4732
+      computer_name: "${TARGET_HOST}"
+      target_user: "${BACKDOOR_USER}"
+      subject_user: "${ATTACKER_USER}"
+      group_name: "Administrators"
+      action: "added"
+
+  # Stage 3: Create persistence service
+  - type: windows_service_started
+    count: 1
+    delay: 30s
+    fields:
+      event_type: windows_service_started
+      event_id: 7045
+      computer_name: "${TARGET_HOST}"
+      service_name: "${SERVICE_NAME}"
+      service_file_name: "C:\\Windows\\Temp\\update.exe"
+      service_type: "user mode service"
+      service_start_type: "auto start"
+      service_account: "LocalSystem"
+
+expected_alerts:
+  - rule_id: windows_user_account_created
+    severity: medium
+    min_count: 1
+  - rule_id: windows_group_membership_changed
+    severity: medium
+    min_count: 1
+  - rule_id: windows_service_started
+    severity: low
+    min_count: 1
+  - rule_id: windows_persistence_attempt
+    severity: medium
+    min_count: 1
+
+validation:
+  timeout: 150s
+  check_interval: 5s

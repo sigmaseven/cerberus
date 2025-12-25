@@ -1,0 +1,261 @@
+[
+  {
+    "id": "windows_failed_login",
+    "name": "Windows Failed Login",
+    "description": "Windows authentication failure (Event ID 4625)",
+    "severity": "Low",
+    "enabled": true,
+    "version": 1,
+    "conditions": [
+      {
+        "field": "event_type",
+        "operator": "==",
+        "value": "windows_failed_login",
+        "logic": "AND"
+      }
+    ],
+    "actions": [],
+    "deduplication": {
+      "enabled": false
+    }
+  },
+  {
+    "id": "windows_successful_login",
+    "name": "Windows Successful Login",
+    "description": "Windows successful authentication (Event ID 4624)",
+    "severity": "Low",
+    "enabled": true,
+    "version": 1,
+    "conditions": [
+      {
+        "field": "event_type",
+        "operator": "==",
+        "value": "windows_successful_login",
+        "logic": "AND"
+      }
+    ],
+    "actions": [],
+    "deduplication": {
+      "enabled": false
+    }
+  },
+  {
+    "id": "windows_account_lockout",
+    "name": "Windows Account Lockout",
+    "description": "Windows account locked out due to failed login attempts (Event ID 4740)",
+    "severity": "Medium",
+    "enabled": true,
+    "version": 1,
+    "conditions": [
+      {
+        "field": "event_type",
+        "operator": "==",
+        "value": "windows_account_lockout",
+        "logic": "AND"
+      }
+    ],
+    "actions": [
+      {
+        "type": "email",
+        "config": {
+          "to": "security@example.com",
+          "subject": "Account Lockout Detected",
+          "body": "Account {{.Event.Fields.target_user}} has been locked out from {{.Event.SourceIP}}"
+        }
+      }
+    ],
+    "deduplication": {
+      "enabled": true,
+      "fields": ["target_user"],
+      "time_window": 300000000000
+    }
+  },
+  {
+    "id": "windows_user_account_created",
+    "name": "Windows User Account Created",
+    "description": "New user account created (Event ID 4720)",
+    "severity": "Medium",
+    "enabled": true,
+    "version": 1,
+    "conditions": [
+      {
+        "field": "event_type",
+        "operator": "==",
+        "value": "windows_user_account_created",
+        "logic": "AND"
+      }
+    ],
+    "actions": [
+      {
+        "type": "webhook",
+        "config": {
+          "url": "http://localhost:9000/user-created",
+          "method": "POST"
+        }
+      }
+    ],
+    "deduplication": {
+      "enabled": true,
+      "fields": ["target_user"],
+      "time_window": 600000000000
+    }
+  },
+  {
+    "id": "windows_user_account_deleted",
+    "name": "Windows User Account Deleted",
+    "description": "User account deleted (Event ID 4726)",
+    "severity": "Medium",
+    "enabled": true,
+    "version": 1,
+    "conditions": [
+      {
+        "field": "event_type",
+        "operator": "==",
+        "value": "windows_user_account_deleted",
+        "logic": "AND"
+      }
+    ],
+    "actions": [
+      {
+        "type": "email",
+        "config": {
+          "to": "security@example.com",
+          "subject": "User Account Deleted",
+          "body": "Account {{.Event.Fields.target_user}} has been deleted by {{.Event.Fields.subject_user}}"
+        }
+      }
+    ],
+    "deduplication": {
+      "enabled": false
+    }
+  },
+  {
+    "id": "windows_group_membership_changed",
+    "name": "Windows Group Membership Changed",
+    "description": "User added to or removed from security group (Event ID 4732/4733)",
+    "severity": "Medium",
+    "enabled": true,
+    "version": 1,
+    "conditions": [
+      {
+        "field": "event_type",
+        "operator": "==",
+        "value": "windows_group_membership_changed",
+        "logic": "AND"
+      }
+    ],
+    "actions": [],
+    "deduplication": {
+      "enabled": true,
+      "fields": ["target_user", "group_name"],
+      "time_window": 300000000000
+    }
+  },
+  {
+    "id": "windows_audit_policy_changed",
+    "name": "Windows Audit Policy Changed",
+    "description": "System audit policy was modified (Event ID 4719)",
+    "severity": "High",
+    "enabled": true,
+    "version": 1,
+    "conditions": [
+      {
+        "field": "event_type",
+        "operator": "==",
+        "value": "windows_audit_policy_changed",
+        "logic": "AND"
+      }
+    ],
+    "actions": [
+      {
+        "type": "email",
+        "config": {
+          "to": "soc@example.com",
+          "subject": "ALERT: Audit Policy Changed",
+          "body": "Audit policy modified by {{.Event.Fields.subject_user}} on {{.Event.Fields.computer_name}}"
+        }
+      }
+    ],
+    "deduplication": {
+      "enabled": false
+    }
+  },
+  {
+    "id": "windows_security_log_cleared",
+    "name": "Windows Security Log Cleared",
+    "description": "Security event log was cleared (Event ID 1102)",
+    "severity": "Critical",
+    "enabled": true,
+    "version": 1,
+    "conditions": [
+      {
+        "field": "event_type",
+        "operator": "==",
+        "value": "windows_security_log_cleared",
+        "logic": "AND"
+      }
+    ],
+    "actions": [
+      {
+        "type": "email",
+        "config": {
+          "to": "soc@example.com",
+          "subject": "CRITICAL: Security Log Cleared",
+          "body": "Security log cleared by {{.Event.Fields.subject_user}} on {{.Event.Fields.computer_name}}"
+        }
+      },
+      {
+        "type": "webhook",
+        "config": {
+          "url": "http://localhost:9000/critical-alert",
+          "method": "POST"
+        }
+      }
+    ],
+    "deduplication": {
+      "enabled": false
+    }
+  },
+  {
+    "id": "windows_system_time_changed",
+    "name": "Windows System Time Changed",
+    "description": "System time was changed (Event ID 4616)",
+    "severity": "Medium",
+    "enabled": true,
+    "version": 1,
+    "conditions": [
+      {
+        "field": "event_type",
+        "operator": "==",
+        "value": "windows_system_time_changed",
+        "logic": "AND"
+      }
+    ],
+    "actions": [],
+    "deduplication": {
+      "enabled": false
+    }
+  },
+  {
+    "id": "windows_service_started",
+    "name": "Windows Service Started",
+    "description": "Windows service was started (Event ID 7045)",
+    "severity": "Low",
+    "enabled": true,
+    "version": 1,
+    "conditions": [
+      {
+        "field": "event_type",
+        "operator": "==",
+        "value": "windows_service_started",
+        "logic": "AND"
+      }
+    ],
+    "actions": [],
+    "deduplication": {
+      "enabled": true,
+      "fields": ["service_name"],
+      "time_window": 300000000000
+    }
+  }
+]

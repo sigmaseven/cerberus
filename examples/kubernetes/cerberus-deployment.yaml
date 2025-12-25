@@ -1,0 +1,201 @@
+---
+# Namespace for Cerberus SIEM
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cerberus
+
+---
+# ConfigMap for Cerberus configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cerberus-config
+  namespace: cerberus
+data:
+  config.yaml: |
+    # Cerberus Configuration for Kubernetes
+    mongodb:
+      enabled: false
+
+    clickhouse:
+      enabled: true
+      addr: "clickhouse.cerberus.svc.cluster.local:9000"
+      database: "cerberus"
+      username: "default"
+      password: "cerberus"
+
+    listeners:
+      syslog:
+        port: 514
+        host: "0.0.0.0"
+      cef:
+        port: 515
+        host: "0.0.0.0"
+      json:
+        port: 8888
+        host: "0.0.0.0"
+      fluentd:
+        enabled: true
+        port: 24224
+        host: "0.0.0.0"
+        worker_count: 8
+      fluentbit:
+        enabled: true
+        port: 24225
+        host: "0.0.0.0"
+        worker_count: 8
+        require_ack: true
+
+    api:
+      port: 8080
+      allowed_origins:
+        - "http://localhost:3001"
+
+    storage:
+      backend: "clickhouse"
+
+    engine:
+      worker_count: 8
+      detection_worker_count: 8
+
+    ml:
+      enabled: true
+      mode: "simple"
+
+---
+# Deployment for Cerberus
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cerberus
+  namespace: cerberus
+  labels:
+    app: cerberus
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cerberus
+  template:
+    metadata:
+      labels:
+        app: cerberus
+    spec:
+      containers:
+      - name: cerberus
+        image: cerberus:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: api
+          protocol: TCP
+        - containerPort: 514
+          name: syslog
+          protocol: TCP
+        - containerPort: 515
+          name: cef
+          protocol: TCP
+        - containerPort: 8888
+          name: json
+          protocol: TCP
+        - containerPort: 24224
+          name: fluentd
+          protocol: TCP
+        - containerPort: 24225
+          name: fluentbit
+          protocol: TCP
+        env:
+        - name: CERBERUS_AUTH_ENABLED
+          value: "false"
+        volumeMounts:
+        - name: config
+          mountPath: /app/config.yaml
+          subPath: config.yaml
+        - name: rules
+          mountPath: /app/rules.json
+        - name: sigma-rules
+          mountPath: /app/sigma_rules
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      volumes:
+      - name: config
+        configMap:
+          name: cerberus-config
+      - name: rules
+        configMap:
+          name: cerberus-rules
+      - name: sigma-rules
+        configMap:
+          name: cerberus-sigma-rules
+
+---
+# Service for Cerberus API
+apiVersion: v1
+kind: Service
+metadata:
+  name: cerberus
+  namespace: cerberus
+  labels:
+    app: cerberus
+spec:
+  selector:
+    app: cerberus
+  ports:
+  - name: api
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  - name: fluentd
+    port: 24224
+    targetPort: 24224
+    protocol: TCP
+  - name: fluentbit
+    port: 24225
+    targetPort: 24225
+    protocol: TCP
+  type: ClusterIP
+
+---
+# Ingress for Cerberus API (optional)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cerberus
+  namespace: cerberus
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+  - hosts:
+    - cerberus.example.com
+    secretName: cerberus-tls
+  rules:
+  - host: cerberus.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: cerberus
+            port:
+              number: 8080

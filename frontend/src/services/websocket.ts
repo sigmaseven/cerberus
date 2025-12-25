@@ -1,16 +1,39 @@
-import { Event, Alert } from '../types';
+import { Event, Alert, ListenerStatus, DashboardStats } from '../types';
+import { WebSocketMessageSchema, safeValidateSchema } from '../schemas/api.schemas';
+
+// TASK 158: Feed sync event types
+export interface FeedSyncEvent {
+  type: 'feed:sync:started' | 'feed:sync:progress' | 'feed:sync:completed' | 'feed:sync:failed';
+  feed_id: string;
+  feed_name: string;
+  progress?: number; // 0-100
+  message?: string;
+  stats?: {
+    total_rules: number;
+    imported_rules: number;
+    updated_rules: number;
+    skipped_rules: number;
+    failed_rules: number;
+    last_sync_duration: number;
+  };
+  error?: string;
+  timestamp: string;
+}
+
+export type WebSocketMessageData = Event | Alert | ListenerStatus | DashboardStats | FeedSyncEvent;
 
 export interface WebSocketMessage {
-  type: 'event' | 'alert' | 'listener_status' | 'dashboard_stats';
-  data: any;
+  type: 'event' | 'alert' | 'listener_status' | 'dashboard_stats' | 'feed_sync';
+  data: WebSocketMessageData;
   timestamp: string;
 }
 
 export interface WebSocketCallbacks {
   onEvent?: (event: Event) => void;
   onAlert?: (alert: Alert) => void;
-  onListenerStatus?: (status: any) => void;
-  onDashboardStats?: (stats: any) => void;
+  onListenerStatus?: (status: ListenerStatus) => void;
+  onDashboardStats?: (stats: DashboardStats) => void;
+  onFeedSync?: (event: FeedSyncEvent) => void; // TASK 158
   onConnect?: () => void;
   onDisconnect?: () => void;
   onError?: (error: Event) => void;
@@ -30,7 +53,7 @@ class WebSocketService {
   }
 
   private getWebSocketUrl(): string {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081';
     // Convert HTTP to WS
     const wsUrl = baseUrl.replace(/^http/, 'ws');
     return `${wsUrl}/ws`;
@@ -48,7 +71,6 @@ class WebSocketService {
       this.ws = new WebSocket(url);
 
       this.ws.onopen = () => {
-        console.log('WebSocket connected');
         this.isConnecting = false;
         this.reconnectAttempts = 0;
         this.reconnectInterval = 1000;
@@ -57,15 +79,29 @@ class WebSocketService {
 
       this.ws.onmessage = (event) => {
         try {
-          const message: WebSocketMessage = JSON.parse(event.data);
-          this.handleMessage(message);
+          const rawData = JSON.parse(event.data);
+
+          // SECURITY: Validate WebSocket message structure
+          const validatedMessage = safeValidateSchema(WebSocketMessageSchema, rawData);
+
+          if (!validatedMessage) {
+            if (import.meta.env.DEV) {
+              console.error('Invalid WebSocket message format:', rawData);
+            }
+            // Don't process invalid messages to prevent XSS/injection
+            return;
+          }
+
+          this.handleMessage(validatedMessage);
         } catch (error) {
-          console.error('Failed to parse WebSocket message:', error);
+          if (import.meta.env.DEV) {
+            console.error('Failed to parse WebSocket message:', error);
+          }
+          // Don't crash the app, just log and continue
         }
       };
 
       this.ws.onclose = () => {
-        console.log('WebSocket disconnected');
         this.isConnecting = false;
         this.callbacks.onDisconnect?.();
         this.attemptReconnect();
@@ -74,15 +110,20 @@ class WebSocketService {
       this.ws.onerror = (error) => {
         // Silently handle WebSocket errors if the endpoint doesn't exist
         // Only log if we were previously connected (indicating a real error)
-        if (this.reconnectAttempts > 0) {
+        if (this.reconnectAttempts > 0 && import.meta.env.DEV) {
           console.warn('WebSocket connection lost, attempting to reconnect...');
+        } else if (this.reconnectAttempts === 0 && import.meta.env.DEV) {
+          // Silent fail on first attempt - backend may not have WebSocket endpoint
+          console.debug('WebSocket not available - realtime updates disabled');
         }
         // Don't spam console with errors on initial connection failure
         this.callbacks.onError?.(error);
       };
 
     } catch (error) {
-      console.error('Failed to create WebSocket connection:', error);
+      if (import.meta.env.DEV) {
+        console.error('Failed to create WebSocket connection:', error);
+      }
       this.isConnecting = false;
       this.attemptReconnect();
     }
@@ -95,12 +136,10 @@ class WebSocketService {
     }
 
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnection attempts reached');
       return;
     }
 
     this.reconnectAttempts++;
-    console.log(`Attempting to reconnect... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
 
     setTimeout(() => {
       this.reconnectInterval = Math.min(this.reconnectInterval * 2, 30000); // Exponential backoff, max 30s
@@ -108,22 +147,37 @@ class WebSocketService {
     }, this.reconnectInterval);
   }
 
-  private handleMessage(message: WebSocketMessage): void {
+  private handleMessage(message: { type: string; data?: unknown; timestamp?: number }): void {
+    // SECURITY: Messages are already validated by WebSocketMessageSchema
     switch (message.type) {
       case 'event':
-        this.callbacks.onEvent?.(message.data);
+        if (message.data) {
+          this.callbacks.onEvent?.(message.data as Event);
+        }
         break;
       case 'alert':
-        this.callbacks.onAlert?.(message.data);
+        if (message.data) {
+          this.callbacks.onAlert?.(message.data as Alert);
+        }
         break;
-      case 'listener_status':
-        this.callbacks.onListenerStatus?.(message.data);
+      case 'stats':
+        if (message.data) {
+          this.callbacks.onDashboardStats?.(message.data as DashboardStats);
+        }
         break;
-      case 'dashboard_stats':
-        this.callbacks.onDashboardStats?.(message.data);
+      case 'feed_sync':
+        // TASK 158: Handle feed sync events
+        if (message.data) {
+          this.callbacks.onFeedSync?.(message.data as FeedSyncEvent);
+        }
+        break;
+      case 'heartbeat':
+        // Heartbeat message - no action needed
         break;
       default:
-        console.warn('Unknown WebSocket message type:', message.type);
+        if (import.meta.env.DEV) {
+          console.warn('Unknown WebSocket message type:', message.type);
+        }
     }
   }
 
@@ -156,10 +210,10 @@ class WebSocketService {
     return this.ws?.readyState === WebSocket.OPEN;
   }
 
-  send(message: any): void {
+  send(message: Record<string, unknown>): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
-    } else {
+    } else if (import.meta.env.DEV) {
       console.warn('WebSocket is not connected. Message not sent:', message);
     }
   }

@@ -15,32 +15,28 @@ import {
   MenuItem,
   Box,
   Typography,
-  IconButton,
   Chip,
   Grid,
   Accordion,
   AccordionSummary,
   AccordionDetails,
   Slider,
-} from '@mui/material';
+  IconButton} from '@mui/material';
 import {
   Add as AddIcon,
   Delete as DeleteIcon,
-  ExpandMore as ExpandMoreIcon,
-} from '@mui/icons-material';
-import { CorrelationRule, Condition, Action } from '../../types';
+  ExpandMore as ExpandMoreIcon} from '@mui/icons-material';
+import { CorrelationRule} from '../../types';
 
 const conditionSchema = z.object({
   field: z.string().min(1, 'Field is required'),
   operator: z.string().min(1, 'Operator is required'),
   value: z.union([z.string(), z.number()]).refine(val => val !== '' && val != null, { message: 'Value is required' }),
-  logic: z.enum(['AND', 'OR']),
-});
+  logic: z.enum(['AND', 'OR'])});
 
 const actionSchema = z.object({
   type: z.string().min(1, 'Action type is required'),
-  config: z.union([z.string(), z.record(z.any())]),
-});
+  config: z.union([z.string(), z.record(z.any())])});
 
 const correlationRuleFormSchema = z.object({
   name: z.string().min(1, 'Rule name is required'),
@@ -50,8 +46,7 @@ const correlationRuleFormSchema = z.object({
   window: z.number().min(1, 'Window must be at least 1 second'),
   sequence: z.array(z.string()).min(2, 'At least 2 events required in sequence'),
   conditions: z.array(conditionSchema).optional(),
-  actions: z.array(actionSchema).optional(),
-});
+  actions: z.array(actionSchema).optional()});
 
 type CorrelationRuleFormData = z.infer<typeof correlationRuleFormSchema>;
 
@@ -122,8 +117,7 @@ export function CorrelationRuleForm({ open, onClose, onSubmit, initialData, titl
     watch,
     setValue,
     reset,
-    formState: { errors },
-  } = useForm<CorrelationRuleFormData>({
+    formState: { errors }} = useForm<CorrelationRuleFormData>({
     resolver: zodResolver(correlationRuleFormSchema),
     defaultValues: {
       name: initialData?.name || '',
@@ -137,10 +131,7 @@ export function CorrelationRuleForm({ open, onClose, onSubmit, initialData, titl
         ...action,
         config: typeof action.config === 'object'
           ? JSON.stringify(action.config, null, 2)
-          : action.config,
-      })) || [],
-    },
-  });
+          : action.config})) || []}});
 
   // Reset form when initialData changes or dialog opens
   useEffect(() => {
@@ -157,44 +148,39 @@ export function CorrelationRuleForm({ open, onClose, onSubmit, initialData, titl
               field: c.field || 'event_type',
               operator: c.operator || 'equals',
               value: c.value !== null && c.value !== undefined ? c.value : '',
-              logic: c.logic || 'AND',
-            }))
+              logic: c.logic || 'AND'}))
           : [],
         actions: initialData?.actions?.map((action) => ({
           ...action,
           config: typeof action.config === 'object'
             ? JSON.stringify(action.config, null, 2)
-            : action.config,
-        })) || [],
-      });
+            : action.config})) || []});
     }
   }, [open, initialData, reset]);
 
   const {
     fields: sequenceFields,
     append: appendSequence,
-    remove: removeSequence,
-  } = useFieldArray({
+    remove: removeSequence} = useFieldArray({
     control,
-    name: 'sequence',
-  });
+    name: 'sequence'});
 
   const {
     fields: conditionFields,
     append: appendCondition,
-    remove: removeCondition,
+    remove: removeCondition
   } = useFieldArray({
     control,
-    name: 'conditions',
+    name: 'conditions'
   });
 
   const {
     fields: actionFields,
     append: appendAction,
-    remove: removeAction,
+    remove: removeAction
   } = useFieldArray({
     control,
-    name: 'actions',
+    name: 'actions'
   });
 
   const watchedValues = watch();
@@ -210,9 +196,7 @@ export function CorrelationRuleForm({ open, onClose, onSubmit, initialData, titl
           ...action,
           config: typeof action.config === 'string'
             ? JSON.parse(action.config)
-            : action.config,
-        })) || [],
-      };
+            : action.config})) || []};
       onSubmit(processedData);
     } catch (error) {
       console.error('Failed to parse action configuration:', error);
@@ -238,15 +222,13 @@ export function CorrelationRuleForm({ open, onClose, onSubmit, initialData, titl
       field: 'event_type',
       operator: 'equals',
       value: '',
-      logic: 'AND',
-    });
+      logic: 'AND'});
   };
 
   const addAction = () => {
     appendAction({
       type: 'webhook',
-      config: JSON.stringify({ url: '' }, null, 2),
-    });
+      config: JSON.stringify({ url: '' }, null, 2)});
   };
 
   const formatWindowLabel = (value: number) => {
@@ -533,8 +515,7 @@ export function CorrelationRuleForm({ open, onClose, onSubmit, initialData, titl
                     borderRadius: 1,
                     overflow: 'auto',
                     maxHeight: 200,
-                    fontSize: '0.75rem',
-                  }}
+                    fontSize: '0.75rem'}}
                 >
                   {jsonPreview}
                 </Box>

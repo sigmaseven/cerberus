@@ -1,0 +1,504 @@
+# Fluentd/Fluent Bit Field Mappings to SIGMA Standard
+# This file defines how fields from Fluentd and Fluent Bit are normalized to SIGMA fields
+#
+# Format:
+#   source_pattern: regex pattern to match source field names
+#   sigma_field: target SIGMA field name
+#   transform: optional transformation function (timestamp, lowercase, uppercase, etc.)
+#   priority: mapping priority (higher = applied first)
+
+version: "1.0"
+
+# ========================================
+# Kubernetes Field Mappings
+# ========================================
+kubernetes:
+  description: "Mappings for Kubernetes metadata added by Fluent Bit kubernetes filter"
+
+  mappings:
+    - source: "kubernetes.pod_name"
+      sigma: "HostName"
+      description: "Pod name becomes the hostname"
+      priority: 100
+
+    - source: "kubernetes.namespace_name"
+      sigma: "Tags"
+      description: "Add namespace as a tag"
+      transform: "append_tag"
+      priority: 100
+
+    - source: "kubernetes.container_name"
+      sigma: "Process.Name"
+      description: "Container name as process name"
+      priority: 100
+
+    - source: "kubernetes.container_id"
+      sigma: "Process.ProcessId"
+      description: "Container ID as process ID"
+      priority: 100
+
+    - source: "kubernetes.container_image"
+      sigma: "Process.CommandLine"
+      description: "Container image as command line"
+      priority: 90
+
+    - source: "kubernetes.host"
+      sigma: "Computer"
+      description: "Kubernetes node name"
+      priority: 100
+
+    - source: "kubernetes.labels.app"
+      sigma: "Tags"
+      description: "Add app label as tag"
+      transform: "append_tag"
+      priority: 90
+
+    - source: "kubernetes.labels.*"
+      sigma: "Tags"
+      description: "Add all labels as tags"
+      transform: "append_tag"
+      pattern: "^kubernetes\\.labels\\.(.+)$"
+      priority: 80
+
+    - source: "kubernetes.annotations.*"
+      sigma: "OriginalFields"
+      description: "Preserve annotations in original fields"
+      pattern: "^kubernetes\\.annotations\\.(.+)$"
+      priority: 50
+
+# ========================================
+# Docker Field Mappings
+# ========================================
+docker:
+  description: "Mappings for Docker container metadata"
+
+  mappings:
+    - source: "docker.container_name"
+      sigma: "HostName"
+      description: "Docker container name as hostname"
+      priority: 100
+
+    - source: "docker.container_id"
+      sigma: "Process.ProcessId"
+      description: "Docker container ID (short) as process ID"
+      transform: "truncate:12"  # Docker short ID
+      priority: 100
+
+    - source: "docker.image_name"
+      sigma: "Process.CommandLine"
+      description: "Docker image name"
+      priority: 90
+
+    - source: "docker.image_id"
+      sigma: "Hashes.SHA256"
+      description: "Docker image ID as hash"
+      transform: "remove_prefix:sha256:"
+      priority: 90
+
+# ========================================
+# Syslog Field Mappings
+# ========================================
+syslog:
+  description: "Mappings for syslog messages parsed by Fluentd"
+
+  mappings:
+    - source: "syslog.hostname"
+      sigma: "HostName"
+      description: "Syslog hostname"
+      priority: 100
+
+    - source: "syslog.appname"
+      sigma: "Process.Name"
+      description: "Syslog application name"
+      priority: 100
+
+    - source: "syslog.procid"
+      sigma: "Process.ProcessId"
+      description: "Syslog process ID"
+      priority: 100
+
+    - source: "syslog.message"
+      sigma: "Message"
+      description: "Syslog message content"
+      priority: 100
+
+    - source: "syslog.facility"
+      sigma: "Tags"
+      description: "Syslog facility as tag"
+      transform: "append_tag"
+      priority: 90
+
+    - source: "syslog.severity"
+      sigma: "Level"
+      description: "Map syslog severity to event level"
+      transform: "syslog_severity_to_level"
+      priority: 100
+
+    - source: "syslog.timestamp"
+      sigma: "Timestamp"
+      description: "Syslog timestamp"
+      transform: "parse_rfc3339"
+      priority: 100
+
+# ========================================
+# Common Log Fields
+# ========================================
+common:
+  description: "Common field mappings used across all sources"
+
+  mappings:
+    - source: "log"
+      sigma: "Message"
+      description: "Standard log message field"
+      priority: 100
+
+    - source: "message"
+      sigma: "Message"
+      description: "Standard message field"
+      priority: 100
+
+    - source: "msg"
+      sigma: "Message"
+      description: "Abbreviated message field"
+      priority: 90
+
+    - source: "time"
+      sigma: "Timestamp"
+      description: "Standard time field"
+      transform: "parse_rfc3339"
+      priority: 100
+
+    - source: "timestamp"
+      sigma: "Timestamp"
+      description: "Standard timestamp field"
+      transform: "parse_rfc3339"
+      priority: 100
+
+    - source: "@timestamp"
+      sigma: "Timestamp"
+      description: "Elasticsearch-style timestamp"
+      transform: "parse_rfc3339"
+      priority: 100
+
+    - source: "stream"
+      sigma: "SourceName"
+      description: "Stream type (stdout/stderr)"
+      priority: 80
+
+    - source: "level"
+      sigma: "Level"
+      description: "Log level"
+      transform: "normalize_level"
+      priority: 100
+
+    - source: "severity"
+      sigma: "Level"
+      description: "Severity level"
+      transform: "normalize_level"
+      priority: 100
+
+    - source: "host"
+      sigma: "Computer"
+      description: "Host/computer name"
+      priority: 90
+
+    - source: "hostname"
+      sigma: "HostName"
+      description: "Hostname"
+      priority: 90
+
+    - source: "source"
+      sigma: "SourceName"
+      description: "Log source name"
+      priority: 80
+
+    - source: "source_ip"
+      sigma: "SourceIp"
+      description: "Source IP address"
+      priority: 100
+
+    - source: "client_ip"
+      sigma: "SourceIp"
+      description: "Client IP address"
+      priority: 100
+
+# ========================================
+# Web Access Log Mappings
+# ========================================
+web:
+  description: "Mappings for web server access logs (nginx, apache, etc.)"
+
+  mappings:
+    - source: "remote_addr"
+      sigma: "SourceIp"
+      description: "Client IP address"
+      priority: 100
+
+    - source: "request_method"
+      sigma: "Network.Protocol"
+      description: "HTTP method"
+      priority: 90
+
+    - source: "request_uri"
+      sigma: "CommandLine"
+      description: "Request URI"
+      priority: 90
+
+    - source: "status"
+      sigma: "EventId"
+      description: "HTTP status code"
+      priority: 90
+
+    - source: "http_user_agent"
+      sigma: "Process.CommandLine"
+      description: "User agent string"
+      priority: 80
+
+    - source: "http_referer"
+      sigma: "ParentCommandLine"
+      description: "HTTP referer"
+      priority: 70
+
+# ========================================
+# Application Log Mappings
+# ========================================
+application:
+  description: "Mappings for structured application logs"
+
+  mappings:
+    - source: "user"
+      sigma: "User"
+      description: "Username"
+      priority: 100
+
+    - source: "user_id"
+      sigma: "User.Id"
+      description: "User ID"
+      priority: 100
+
+    - source: "session_id"
+      sigma: "LogonId"
+      description: "Session ID"
+      priority: 90
+
+    - source: "action"
+      sigma: "EventType"
+      description: "Action performed"
+      priority: 100
+
+    - source: "event"
+      sigma: "EventType"
+      description: "Event type"
+      priority: 100
+
+    - source: "event_id"
+      sigma: "EventId"
+      description: "Event ID"
+      priority: 100
+
+    - source: "error"
+      sigma: "Message"
+      description: "Error message"
+      transform: "prefix:ERROR:"
+      priority: 90
+
+    - source: "exception"
+      sigma: "Message"
+      description: "Exception details"
+      transform: "prefix:EXCEPTION:"
+      priority: 90
+
+    - source: "stack_trace"
+      sigma: "OriginalFields.stack_trace"
+      description: "Stack trace (preserve in original)"
+      priority: 80
+
+# ========================================
+# Security Event Mappings
+# ========================================
+security:
+  description: "Mappings for security-related events"
+
+  mappings:
+    - source: "auth.user"
+      sigma: "User"
+      description: "Authenticated user"
+      priority: 100
+
+    - source: "auth.method"
+      sigma: "AuthenticationPackageName"
+      description: "Authentication method"
+      priority: 90
+
+    - source: "auth.status"
+      sigma: "Status"
+      description: "Authentication status"
+      priority: 100
+
+    - source: "auth.source_ip"
+      sigma: "IpAddress"
+      description: "Authentication source IP"
+      priority: 100
+
+    - source: "file.path"
+      sigma: "TargetFilename"
+      description: "File path"
+      priority: 100
+
+    - source: "file.name"
+      sigma: "TargetFilename"
+      description: "File name"
+      priority: 90
+
+    - source: "file.hash.sha256"
+      sigma: "Hashes.SHA256"
+      description: "File SHA256 hash"
+      priority: 100
+
+    - source: "file.hash.md5"
+      sigma: "Hashes.MD5"
+      description: "File MD5 hash"
+      priority: 90
+
+    - source: "process.name"
+      sigma: "Process.Name"
+      description: "Process name"
+      priority: 100
+
+    - source: "process.pid"
+      sigma: "Process.ProcessId"
+      description: "Process ID"
+      priority: 100
+
+    - source: "process.command_line"
+      sigma: "Process.CommandLine"
+      description: "Process command line"
+      priority: 100
+
+    - source: "network.src_ip"
+      sigma: "SourceIp"
+      description: "Network source IP"
+      priority: 100
+
+    - source: "network.dst_ip"
+      sigma: "DestinationIp"
+      description: "Network destination IP"
+      priority: 100
+
+    - source: "network.src_port"
+      sigma: "SourcePort"
+      description: "Network source port"
+      priority: 100
+
+    - source: "network.dst_port"
+      sigma: "DestinationPort"
+      description: "Network destination port"
+      priority: 100
+
+# ========================================
+# Metadata Mappings
+# ========================================
+metadata:
+  description: "Mappings for Fluentd/Fluent Bit metadata"
+
+  mappings:
+    - source: "tag"
+      sigma: "SourceName"
+      description: "Fluentd tag as source name"
+      priority: 80
+
+    - source: "_fluentd_time"
+      sigma: "IngestionTimestamp"
+      description: "Fluentd processing time"
+      priority: 70
+
+# ========================================
+# Transform Functions
+# ========================================
+# These are referenced in the transform field above
+transforms:
+  append_tag:
+    description: "Append value to Tags array"
+
+  truncate:
+    description: "Truncate string to N characters"
+    syntax: "truncate:N"
+
+  remove_prefix:
+    description: "Remove prefix from string"
+    syntax: "remove_prefix:PREFIX"
+
+  syslog_severity_to_level:
+    description: "Convert syslog severity (0-7) to log level"
+    mapping:
+      0: "emergency"    # Emergency
+      1: "alert"        # Alert
+      2: "critical"     # Critical
+      3: "error"        # Error
+      4: "warning"      # Warning
+      5: "notice"       # Notice
+      6: "info"         # Informational
+      7: "debug"        # Debug
+
+  normalize_level:
+    description: "Normalize various level formats to standard levels"
+    mapping:
+      DEBUG: "debug"
+      INFO: "info"
+      INFORMATION: "info"
+      WARN: "warning"
+      WARNING: "warning"
+      ERROR: "error"
+      ERR: "error"
+      FATAL: "critical"
+      CRITICAL: "critical"
+      CRIT: "critical"
+
+  parse_rfc3339:
+    description: "Parse RFC3339/ISO8601 timestamp to Unix epoch"
+
+  prefix:
+    description: "Add prefix to string"
+    syntax: "prefix:PREFIX"
+
+# ========================================
+# Tag-Based Routing Rules
+# ========================================
+# Define custom mappings based on Fluentd tag patterns
+tag_routing:
+  - pattern: "^kubernetes\\.(.+)$"
+    mapping_group: "kubernetes"
+    description: "Route kubernetes.* tags to Kubernetes mappings"
+
+  - pattern: "^docker\\.(.+)$"
+    mapping_group: "docker"
+    description: "Route docker.* tags to Docker mappings"
+
+  - pattern: "^syslog\\.(.+)$"
+    mapping_group: "syslog"
+    description: "Route syslog.* tags to Syslog mappings"
+
+  - pattern: "^nginx\\.access$"
+    mapping_group: "web"
+    description: "Route nginx access logs to web mappings"
+
+  - pattern: "^app\\.(.+)\\.security$"
+    mapping_group: "security"
+    description: "Route security logs to security mappings"
+
+# ========================================
+# Fallback Behavior
+# ========================================
+fallback:
+  # What to do with unmapped fields
+  unmapped_fields: "preserve"  # Options: preserve, drop, log
+
+  # Default SIGMA fields to set if not mapped
+  defaults:
+    EventSource: "fluentd"
+    Category: "logs"
+    Provider: "cerberus"
+
+  # Preserve original fields?
+  preserve_original: true
+  original_field_prefix: "OriginalFields."

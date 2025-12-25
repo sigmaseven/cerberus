@@ -1,0 +1,17 @@
+title: Suspicious PowerShell Execution
+id: test-basic-powershell-001
+status: test
+description: Detects suspicious PowerShell command execution
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\powershell.exe'
+        CommandLine|contains:
+            - '-enc'
+            - '-encodedcommand'
+            - '-w hidden'
+            - 'bypass'
+    condition: selection
+level: high

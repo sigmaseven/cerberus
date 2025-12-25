@@ -1,0 +1,21 @@
+title: Suspicious Process Created via WMI
+id: sigma-real-001
+status: test
+description: Detects process creation via WMI - common technique for lateral movement
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        ParentImage|endswith:
+            - '\WmiPrvSE.exe'
+            - '\scrcons.exe'
+    filter:
+        Image|endswith:
+            - '\WmiPrvSE.exe'
+            - '\msiexec.exe'
+    condition: selection and not filter
+level: medium
+tags:
+    - attack.execution
+    - attack.t1047

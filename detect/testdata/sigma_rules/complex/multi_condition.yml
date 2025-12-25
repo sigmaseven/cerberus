@@ -1,0 +1,27 @@
+title: Advanced Credential Dumping Activity
+id: test-complex-cred-001
+status: test
+description: Detects various credential dumping techniques
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_mimikatz:
+        Image|endswith: '\mimikatz.exe'
+    selection_sekurlsa:
+        CommandLine|contains:
+            - 'sekurlsa::logonpasswords'
+            - 'sekurlsa::wdigest'
+            - 'sekurlsa::kerberos'
+    selection_procdump:
+        Image|endswith: '\procdump.exe'
+        CommandLine|contains: 'lsass'
+    selection_comsvcs:
+        CommandLine|contains|all:
+            - 'comsvcs.dll'
+            - 'MiniDump'
+    filter_admin:
+        User: 'SYSTEM'
+        ParentImage|endswith: '\services.exe'
+    condition: (selection_mimikatz or selection_sekurlsa or selection_procdump or selection_comsvcs) and not filter_admin
+level: critical

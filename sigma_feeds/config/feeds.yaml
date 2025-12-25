@@ -1,0 +1,81 @@
+feeds:
+  # Primary community feed - SigmaHQ Full Repository
+  - id: sigmahq-community
+    name: "SigmaHQ Community Rules"
+    description: "Official SIGMA rule repository maintained by the community"
+    type: git
+    enabled: true
+    url: https://github.com/SigmaHQ/sigma.git
+    branch: master
+    priority: 100
+
+    include_paths:
+      - "rules/windows/**/*.yml"
+      - "rules/linux/**/*.yml"
+      - "rules/cloud/**/*.yml"
+      - "rules/network/**/*.yml"
+      - "rules/web/**/*.yml"
+
+    exclude_paths:
+      - "rules/*/deprecated/**"
+      - "rules/*/test/**"
+      - "rules/*/experimental/**"
+
+    auto_enable_rules: false
+    update_strategy: scheduled
+    update_schedule: "0 2 * * *"  # 2 AM daily
+
+    tags:
+      - official
+      - community
+      - sigma
+
+    metadata:
+      license: "DRL 1.1"
+      maintainer: "SigmaHQ"
+      documentation: "https://github.com/SigmaHQ/sigma/wiki"
+
+  # Custom organizational rules
+  - id: custom-org-rules
+    name: "Organization Custom Rules"
+    description: "Custom detection rules developed in-house"
+    type: filesystem
+    enabled: true
+    path: ./sigma_rules/custom/
+    priority: 1000  # Highest priority
+
+    auto_enable_rules: true
+    update_strategy: startup
+
+    tags:
+      - custom
+      - internal
+      - high-priority
+
+# Global import settings
+import_settings:
+  parallel_workers: 10
+  batch_size: 100
+  validate_before_import: true
+  skip_duplicates: true
+  deduplication_strategy: content_hash  # content_hash, id, title
+
+  quality_filters:
+    min_status: test  # experimental, test, stable
+    exclude_deprecated: true
+    require_detection: true
+    require_logsource: true
+    require_mitre_mapping: false
+
+  conflict_resolution:
+    strategy: priority  # priority, newest, manual
+    allow_overwrites: false
+
+# Scheduler settings
+scheduler:
+  enabled: true
+  timezone: UTC
+  max_concurrent_syncs: 3
+  sync_timeout: 300  # seconds
+  retry_failed_syncs: true
+  retry_delay: 3600  # seconds

@@ -1,0 +1,44 @@
+name: "Port Scan Detection"
+description: "Simulates port scanning activity from single source"
+duration: 30s
+source_ip: "203.0.113.75"
+target_ip: "10.0.1.100"
+
+events:
+  # Stage 1: Scan common ports
+  - type: network_connection
+    count: 20
+    interval: 1s
+    port_range:
+      - 21    # FTP
+      - 22    # SSH
+      - 23    # Telnet
+      - 25    # SMTP
+      - 80    # HTTP
+      - 110   # POP3
+      - 143   # IMAP
+      - 443   # HTTPS
+      - 445   # SMB
+      - 3306  # MySQL
+      - 3389  # RDP
+      - 5432  # PostgreSQL
+      - 8080  # HTTP-Alt
+      - 8443  # HTTPS-Alt
+    fields:
+      event_type: network_connection
+      source_ip: "${SOURCE_IP}"
+      dest_ip: "${TARGET_IP}"
+      dest_port: "${PORT}"  # Will be replaced with port from range
+      protocol: tcp
+      connection_state: syn_sent
+      bytes_sent: 0
+      bytes_received: 0
+
+expected_alerts:
+  - rule_id: port_scan_detection
+    severity: medium
+    min_count: 1
+
+validation:
+  timeout: 60s
+  check_interval: 5s

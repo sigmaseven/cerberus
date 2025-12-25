@@ -30,6 +30,7 @@ import {
 import { apiService } from '../../services/api';
 import { Action } from '../../types';
 import { ActionForm } from '../../components/forms/ActionForm';
+import { ProtectedComponent } from '../../components/ProtectedComponent';
 
 function Actions() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -47,7 +48,7 @@ function Actions() {
 
   const { data: actions, isLoading, error } = useQuery({
     queryKey: ['actions'],
-    queryFn: apiService.getActions,
+    queryFn: () => apiService.getActions(),
   });
 
   const createMutation = useMutation({
@@ -196,14 +197,17 @@ function Actions() {
         gap: 2,
         alignItems: { xs: 'stretch', sm: 'center' }
       }}>
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<AddIcon />}
-          onClick={() => setCreateDialogOpen(true)}
-        >
-          Create Action
-        </Button>
+        {/* TASK 3.6: Protect Create Action button with write:actions permission */}
+        <ProtectedComponent permission="write:actions">
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<AddIcon />}
+            onClick={() => setCreateDialogOpen(true)}
+          >
+            Create Action
+          </Button>
+        </ProtectedComponent>
 
         <TextField
           label="Search actions"
@@ -217,7 +221,7 @@ function Actions() {
 
       <Grid container spacing={{ xs: 2, sm: 3 }}>
         {filteredActions?.map((action) => (
-          <Grid item xs={12} sm={6} lg={4} key={action.id}>
+          <Grid key={action.id} size={{ xs: 12, sm: 6, lg: 4 }}>
             <Card
               sx={{
                 height: '100%',
@@ -263,21 +267,27 @@ function Actions() {
               </CardContent>
 
               <CardActions>
-                <Button
-                  size="small"
-                  startIcon={<EditIcon />}
-                  onClick={() => handleEditAction(action)}
-                >
-                  Configure
-                </Button>
-                <Button
-                  size="small"
-                  color="error"
-                  startIcon={<DeleteIcon />}
-                  onClick={() => handleDeleteAction(action)}
-                >
-                  Delete
-                </Button>
+                {/* TASK 3.6: Protect Edit button with write:actions permission */}
+                <ProtectedComponent permission="write:actions">
+                  <Button
+                    size="small"
+                    startIcon={<EditIcon />}
+                    onClick={() => handleEditAction(action)}
+                  >
+                    Configure
+                  </Button>
+                </ProtectedComponent>
+                {/* TASK 3.6: Protect Delete button with write:actions permission */}
+                <ProtectedComponent permission="write:actions">
+                  <Button
+                    size="small"
+                    color="error"
+                    startIcon={<DeleteIcon />}
+                    onClick={() => handleDeleteAction(action)}
+                  >
+                    Delete
+                  </Button>
+                </ProtectedComponent>
               </CardActions>
             </Card>
           </Grid>
@@ -332,15 +342,26 @@ function Actions() {
       {/* Snackbar for notifications */}
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={4000}
+        autoHideDuration={snackbar.severity === 'error' ? 10000 : 4000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
         <Alert
           onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
-          sx={{ width: '100%' }}
+          sx={{
+            width: '100%',
+            maxWidth: snackbar.severity === 'error' ? '600px' : '400px',
+            '& .MuiAlert-message': {
+              whiteSpace: 'pre-wrap',
+              fontFamily: snackbar.severity === 'error' ? 'monospace' : 'inherit',
+              fontSize: snackbar.severity === 'error' ? '0.85rem' : 'inherit',
+              maxHeight: '300px',
+              overflow: 'auto',
+            }
+          }}
         >
-          {snackbar.message}
+          {snackbar.message.replace(/\\n/g, '\n').replace(/\\t/g, '\t')}
         </Alert>
       </Snackbar>
     </Box>

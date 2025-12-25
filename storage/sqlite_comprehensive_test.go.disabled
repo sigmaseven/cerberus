@@ -1,0 +1,743 @@
+package storage
+
+import (
+	"context"
+	"database/sql"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"cerberus/core"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+)
+
+// TestSQLite_NewConnection tests creating a new SQLite connection
+func TestSQLite_NewConnection(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+
+	// Use in-memory database for testing
+	sqlite, err := NewSQLite(":memory:", logger)
+	require.NoError(t, err)
+	require.NotNil(t, sqlite)
+	require.NotNil(t, sqlite.DB)
+
+	defer sqlite.Close()
+
+	// Verify connection works
+	err = sqlite.DB.Ping()
+	assert.NoError(t, err)
+}
+
+// TestSQLite_NewConnection_InvalidPath tests error handling for invalid database path
+func TestSQLite_NewConnection_InvalidPath(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+
+	// Try to create database in non-existent directory
+	// SQLite might still create this, so test behavior
+	_, err := NewSQLite("/nonexistent/path/to/database.db", logger)
+
+	// Behavior depends on SQLite - may succeed or fail
+	// Just ensure it doesn't panic
+	t.Logf("Result: %v", err)
+}
+
+// TestSQLite_Close_Comprehensive tests graceful shutdown (comprehensive version)
+func TestSQLite_Close_Comprehensive(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+	sqlite, err := NewSQLite(":memory:", logger)
+	require.NoError(t, err)
+
+	err = sqlite.Close()
+	assert.NoError(t, err)
+
+	// Double close should not panic
+	err = sqlite.Close()
+	// May or may not error - just ensure no panic
+	t.Logf("Double close result: %v", err)
+}
+
+// TestSQLite_ConcurrentAccess tests concurrent reads and writes
+func TestSQLite_ConcurrentAccess(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+	sqlite, err := NewSQLite(":memory:", logger)
+	require.NoError(t, err)
+	defer sqlite.Close()
+
+	// Create a test table
+	_, err = sqlite.DB.Exec(`
+		CREATE TABLE IF NOT EXISTS test_concurrent (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			value TEXT
+		)
+	`)
+	require.NoError(t, err)
+
+	// Perform concurrent writes
+	done := make(chan bool, 10)
+	for i := 0; i < 10; i++ {
+		go func(val int) {
+			_, err := sqlite.DB.Exec("INSERT INTO test_concurrent (value) VALUES (?)", val)
+			assert.NoError(t, err)
+			done <- true
+		}(i)
+	}
+
+	// Wait for all goroutines
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+
+	// Verify all inserts succeeded
+	var count int
+	err = sqlite.DB.QueryRow("SELECT COUNT(*) FROM test_concurrent").Scan(&count)
+	assert.NoError(t, err)
+	assert.Equal(t, 10, count)
+}
+
+// TestSQLiteRuleStorage_SaveRule tests rule creation
+func TestSQLiteRuleStorage_SaveRule(t *testing.T) {
+	sqlite, ruleStorage, cleanup := setupTestSQLiteWithRules(t)
+	if sqlite == nil {
+		return
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+
+	rule := &core.Rule{
+		ID:          uuid.New().String(),
+		Name:        "Test Rule",
+		Description: "Test rule description",
+		Severity:    "high",
+		Enabled:     true,
+		Type:        "sigma",
+		Conditions:  []core.Condition{{Field: "test", Operator: "equals", Value: "value"}},
+		Actions:     []core.Action{{ID: "act-1", Type: "alert"}},
+	}
+
+	err := ruleStorage.CreateRule(rule)
+	assert.NoError(t, err)
+
+	// Verify rule was saved
+	retrieved, err := ruleStorage.GetRule(rule.ID)
+	require.NoError(t, err)
+	require.NotNil(t, retrieved)
+	assert.Equal(t, rule.ID, retrieved.ID)
+	assert.Equal(t, rule.Name, retrieved.Name)
+	assert.Equal(t, rule.Severity, retrieved.Severity)
+	assert.Equal(t, rule.Enabled, retrieved.Enabled)
+}
+
+// TestSQLiteRuleStorage_GetRuleByID tests rule retrieval
+func TestSQLiteRuleStorage_GetRuleByID(t *testing.T) {
+	_, ruleStorage, cleanup := setupTestSQLiteWithRules(t)
+	if ruleStorage == nil {
+		return
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// Save a rule first
+	ruleID := uuid.New().String()
+	rule := &core.Rule{
+		ID:        ruleID,
+		Name:      "Retrieval Test",
+		Severity:  "medium",
+		Enabled:   true,
+		Type:      "sigma",
+		Conditions: []core.Condition{{Field: "test", Operator: "equals", Value: "value"}},
+		Actions:   []core.Action{{ID: "act-1", Type: "alert"}},
+	}
+
+	err := ruleStorage.CreateRule(rule)
+	require.NoError(t, err)
+
+	// Retrieve it
+	retrieved, err := ruleStorage.GetRule(ruleID)
+	require.NoError(t, err)
+	assert.Equal(t, ruleID, retrieved.ID)
+	assert.Equal(t, "Retrieval Test", retrieved.Name)
+}
+
+// TestSQLiteRuleStorage_GetRuleByID_NotFound tests error handling for non-existent rule
+func TestSQLiteRuleStorage_GetRuleByID_NotFound(t *testing.T) {
+	_, ruleStorage, cleanup := setupTestSQLiteWithRules(t)
+	if ruleStorage == nil {
+		return
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+
+	_, err := ruleStorage.GetRule("nonexistent-rule-id")
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrRuleNotFound)
+}
+
+// TestSQLiteRuleStorage_UpdateRule tests rule updates
+func TestSQLiteRuleStorage_UpdateRule(t *testing.T) {
+	_, ruleStorage, cleanup := setupTestSQLiteWithRules(t)
+	if ruleStorage == nil {
+		return
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// Create initial rule
+	ruleID := uuid.New().String()
+	rule := &core.Rule{
+		ID:        ruleID,
+		Name:      "Original Name",
+		Severity:  "low",
+		Enabled:   true,
+		Type:      "sigma",
+		Conditions: []core.Condition{{Field: "test", Operator: "equals", Value: "value"}},
+		Actions:   []core.Action{{ID: "act-1", Type: "alert"}},
+	}
+
+	err := ruleStorage.CreateRule(rule)
+	require.NoError(t, err)
+
+	// Update the rule
+	updatedRule := &core.Rule{
+		ID:        ruleID,
+		Name:      "Updated Name",
+		Severity:  "high",
+		Enabled:   false,
+		Type:      "sigma",
+		Conditions: []core.Condition{{Field: "test", Operator: "equals", Value: "value"}},
+		Actions:   []core.Action{{ID: "act-1", Type: "alert"}},
+	}
+
+	err = ruleStorage.UpdateRule(ruleID, updatedRule)
+	assert.NoError(t, err)
+
+	// Verify update
+	updated, err := ruleStorage.GetRule(ruleID)
+	require.NoError(t, err)
+	assert.Equal(t, "Updated Name", updated.Name)
+	assert.Equal(t, "high", updated.Severity)
+	assert.False(t, updated.Enabled)
+}
+
+// TestSQLiteRuleStorage_DeleteRule tests rule deletion
+func TestSQLiteRuleStorage_DeleteRule(t *testing.T) {
+	_, ruleStorage, cleanup := setupTestSQLiteWithRules(t)
+	if ruleStorage == nil {
+		return
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// Create a rule
+	ruleID := uuid.New().String()
+	rule := &core.Rule{
+		ID:        ruleID,
+		Name:      "To Be Deleted",
+		Severity:  "medium",
+		Enabled:   true,
+		Type:      "sigma",
+		Conditions: []core.Condition{{Field: "test", Operator: "equals", Value: "value"}},
+		Actions:   []core.Action{{ID: "act-1", Type: "alert"}},
+	}
+
+	err := ruleStorage.CreateRule(rule)
+	require.NoError(t, err)
+
+	// Delete it
+	err = ruleStorage.DeleteRule(ruleID)
+	assert.NoError(t, err)
+
+	// Verify deletion
+	_, err = ruleStorage.GetRule(ruleID)
+	assert.Error(t, err)
+}
+
+// TestSQLiteRuleStorage_ListRules tests listing all rules
+func TestSQLiteRuleStorage_ListRules(t *testing.T) {
+	_, ruleStorage, cleanup := setupTestSQLiteWithRules(t)
+	if ruleStorage == nil {
+		return
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// Create multiple rules
+	for i := 0; i < 5; i++ {
+		rule := &core.Rule{
+			ID:        uuid.New().String(),
+			Name:      "Test Rule " + string(rune('A'+i)),
+			Severity:  "medium",
+			Enabled:   true,
+			Type:      "sigma",
+			Conditions: []core.Condition{{Field: "test", Operator: "equals", Value: "value"}},
+			Actions:   []core.Action{{ID: "act-1", Type: "alert"}},
+		}
+		err := ruleStorage.CreateRule(rule)
+		require.NoError(t, err)
+	}
+
+	// List rules
+	rules, err := ruleStorage.GetRules(10, 0)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, len(rules), 5, "Should have at least 5 rules")
+}
+
+// TestSQLiteRuleStorage_ListRules_Pagination tests pagination
+func TestSQLiteRuleStorage_ListRules_Pagination(t *testing.T) {
+	_, ruleStorage, cleanup := setupTestSQLiteWithRules(t)
+	if ruleStorage == nil {
+		return
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// Create 10 rules
+	for i := 0; i < 10; i++ {
+		rule := &core.Rule{
+			ID:        uuid.New().String(),
+			Name:      "Pagination Test " + string(rune('0'+i)),
+			Severity:  "low",
+			Enabled:   true,
+			Type:      "sigma",
+			Conditions: []core.Condition{{Field: "test", Operator: "equals", Value: "value"}},
+			Actions:   []core.Action{{ID: "act-1", Type: "alert"}},
+		}
+		err := ruleStorage.CreateRule(rule)
+		require.NoError(t, err)
+	}
+
+	// Get first page
+	page1, err := ruleStorage.GetRules(5, 0)
+	require.NoError(t, err)
+	assert.Len(t, page1, 5)
+
+	// Get second page
+	page2, err := ruleStorage.GetRules(5, 5)
+	require.NoError(t, err)
+	assert.Len(t, page2, 5)
+
+	// Pages should have different rules
+	assert.NotEqual(t, page1[0].ID, page2[0].ID)
+}
+
+// TestSQLiteActionStorage_SaveAction tests action creation
+func TestSQLiteActionStorage_SaveAction(t *testing.T) {
+	_, actionStorage, cleanup := setupTestSQLiteWithActions(t)
+	if actionStorage == nil {
+		return
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+
+	action := &core.Action{
+		ID:   uuid.New().String(),
+		Type: "webhook",
+		Config: map[string]interface{}{
+			"url":    "https://example.com/webhook",
+			"method": "POST",
+		},
+	}
+
+	err := actionStorage.CreateAction(action)
+	assert.NoError(t, err)
+
+	// Verify action was saved
+	retrieved, err := actionStorage.GetAction(action.ID)
+	require.NoError(t, err)
+	assert.Equal(t, action.ID, retrieved.ID)
+	assert.Equal(t, action.Type, retrieved.Type)
+}
+
+// TestSQLiteUserStorage_CreateUser tests user creation
+func TestSQLiteUserStorage_CreateUser(t *testing.T) {
+	_, userStorage, cleanup := setupTestSQLiteWithUsers(t)
+	if userStorage == nil {
+		return
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+
+	adminRoleID := int64(4)
+	user := &User{
+		Username: "testuser",
+		Password: "testpassword123",
+		RoleID:   &adminRoleID,
+		Active:   true,
+	}
+
+	err := userStorage.CreateUser(ctx, user)
+	assert.NoError(t, err)
+
+	// Verify user was created
+	retrieved, err := userStorage.GetUserByUsername(ctx, "testuser")
+	require.NoError(t, err)
+	assert.Equal(t, user.Username, retrieved.Username)
+	assert.NotNil(t, retrieved.RoleID)
+	assert.Equal(t, user.Active, retrieved.Active)
+}
+
+// TestSQLiteUserStorage_GetUserByUsername tests user retrieval
+func TestSQLiteUserStorage_GetUserByUsername(t *testing.T) {
+	_, userStorage, cleanup := setupTestSQLiteWithUsers(t)
+	if userStorage == nil {
+		return
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+
+	viewerRoleID := int64(1)
+	user := &User{
+		Username: "findme",
+		Password: "testpassword123",
+		RoleID:   &viewerRoleID,
+		Active:   true,
+	}
+
+	err := userStorage.CreateUser(ctx, user)
+	require.NoError(t, err)
+
+	// Retrieve user
+	found, err := userStorage.GetUserByUsername(ctx, "findme")
+	require.NoError(t, err)
+	assert.Equal(t, "findme", found.Username)
+	assert.NotNil(t, found.RoleID)
+}
+
+// TestSQLiteUserStorage_GetUserByUsername_NotFound tests error handling
+func TestSQLiteUserStorage_GetUserByUsername_NotFound(t *testing.T) {
+	_, userStorage, cleanup := setupTestSQLiteWithUsers(t)
+	if userStorage == nil {
+		return
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+
+	_, err := userStorage.GetUserByUsername(ctx, "nonexistent")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+// TestSQLiteUserStorage_UpdateUser tests user updates
+func TestSQLiteUserStorage_UpdateUser(t *testing.T) {
+	_, userStorage, cleanup := setupTestSQLiteWithUsers(t)
+	if userStorage == nil {
+		return
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+
+	viewerRoleID := int64(1)
+	adminRoleID := int64(4)
+	user := &User{
+		Username: "updatetest",
+		Password: "testpassword123",
+		RoleID:   &viewerRoleID,
+		Active:   true,
+	}
+
+	err := userStorage.CreateUser(ctx, user)
+	require.NoError(t, err)
+
+	// Update user
+	user.RoleID = &adminRoleID
+	user.Active = false
+
+	err = userStorage.UpdateUser(ctx, user)
+	assert.NoError(t, err)
+
+	// Verify update
+	updated, err := userStorage.GetUserByUsername(ctx, "updatetest")
+	require.NoError(t, err)
+	assert.Equal(t, adminRoleID, *updated.RoleID)
+	assert.False(t, updated.Active)
+}
+
+// TestSQLite_Transaction tests transaction handling
+func TestSQLite_Transaction(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+	sqlite, err := NewSQLite(":memory:", logger)
+	require.NoError(t, err)
+	defer sqlite.Close()
+
+	// Create test table
+	_, err = sqlite.DB.Exec(`
+		CREATE TABLE IF NOT EXISTS test_tx (
+			id INTEGER PRIMARY KEY,
+			value TEXT
+		)
+	`)
+	require.NoError(t, err)
+
+	// Start transaction
+	tx, err := sqlite.DB.Begin()
+	require.NoError(t, err)
+
+	// Insert data in transaction
+	_, err = tx.Exec("INSERT INTO test_tx (id, value) VALUES (?, ?)", 1, "test")
+	assert.NoError(t, err)
+
+	// Rollback
+	err = tx.Rollback()
+	assert.NoError(t, err)
+
+	// Verify data was not committed
+	var count int
+	err = sqlite.DB.QueryRow("SELECT COUNT(*) FROM test_tx").Scan(&count)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, count, "Data should not be committed after rollback")
+
+	// Try commit transaction
+	tx, err = sqlite.DB.Begin()
+	require.NoError(t, err)
+
+	_, err = tx.Exec("INSERT INTO test_tx (id, value) VALUES (?, ?)", 1, "test")
+	assert.NoError(t, err)
+
+	err = tx.Commit()
+	assert.NoError(t, err)
+
+	// Verify data was committed
+	err = sqlite.DB.QueryRow("SELECT COUNT(*) FROM test_tx").Scan(&count)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, count, "Data should be committed after commit")
+}
+
+// TestSQLite_PreparedStatements_Comprehensive tests prepared statement usage (comprehensive version)
+func TestSQLite_PreparedStatements(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+	sqlite, err := NewSQLite(":memory:", logger)
+	require.NoError(t, err)
+	defer sqlite.Close()
+
+	// Create table
+	_, err = sqlite.DB.Exec(`
+		CREATE TABLE IF NOT EXISTS test_prepared (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT,
+			value INTEGER
+		)
+	`)
+	require.NoError(t, err)
+
+	// Prepare statement
+	stmt, err := sqlite.DB.Prepare("INSERT INTO test_prepared (name, value) VALUES (?, ?)")
+	require.NoError(t, err)
+	defer stmt.Close()
+
+	// Execute multiple times
+	for i := 0; i < 5; i++ {
+		_, err := stmt.Exec("test", i)
+		assert.NoError(t, err)
+	}
+
+	// Verify
+	var count int
+	err = sqlite.DB.QueryRow("SELECT COUNT(*) FROM test_prepared").Scan(&count)
+	assert.NoError(t, err)
+	assert.Equal(t, 5, count)
+}
+
+// TestSQLite_SQLInjectionPrevention tests that prepared statements prevent SQL injection
+func TestSQLite_SQLInjectionPrevention(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+	sqlite, err := NewSQLite(":memory:", logger)
+	require.NoError(t, err)
+	defer sqlite.Close()
+
+	// Create table
+	_, err = sqlite.DB.Exec(`
+		CREATE TABLE IF NOT EXISTS test_injection (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			username TEXT
+		)
+	`)
+	require.NoError(t, err)
+
+	// Insert legitimate data
+	_, err = sqlite.DB.Exec("INSERT INTO test_injection (username) VALUES (?)", "normaluser")
+	assert.NoError(t, err)
+
+	// Attempt SQL injection through parameter
+	maliciousInput := "admin' OR '1'='1"
+
+	_, err = sqlite.DB.Exec("INSERT INTO test_injection (username) VALUES (?)", maliciousInput)
+	assert.NoError(t, err)
+
+	// Count rows - should only have 2 rows (prepared statement prevents injection)
+	var count int
+	err = sqlite.DB.QueryRow("SELECT COUNT(*) FROM test_injection").Scan(&count)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, count, "SQL injection should not have created extra rows")
+
+	// Verify the malicious input was stored as literal text
+	var username string
+	err = sqlite.DB.QueryRow("SELECT username FROM test_injection WHERE username = ?", maliciousInput).Scan(&username)
+	assert.NoError(t, err)
+	assert.Equal(t, maliciousInput, username, "Malicious input should be treated as literal string")
+}
+
+// Helper functions for test setup
+
+func setupTestSQLiteWithRules(t *testing.T) (*SQLite, *SQLiteRuleStorage, func()) {
+	logger := zap.NewNop().Sugar()
+	sqlite, err := NewSQLite(":memory:", logger)
+	if err != nil {
+		t.Fatalf("Failed to create SQLite: %v", err)
+	}
+
+	ruleStorage := NewSQLiteRuleStorage(sqlite, 30*time.Second, logger)
+
+	cleanup := func() {
+		sqlite.Close()
+	}
+
+	return sqlite, ruleStorage, cleanup
+}
+
+func setupTestSQLiteWithActions(t *testing.T) (*SQLite, *SQLiteActionStorage, func()) {
+	logger := zap.NewNop().Sugar()
+	sqlite, err := NewSQLite(":memory:", logger)
+	if err != nil {
+		t.Fatalf("Failed to create SQLite: %v", err)
+	}
+
+	actionStorage := NewSQLiteActionStorage(sqlite, logger)
+
+	cleanup := func() {
+		sqlite.Close()
+	}
+
+	return sqlite, actionStorage, cleanup
+}
+
+func setupTestSQLiteWithUsers(t *testing.T) (*SQLite, UserStorage, func()) {
+	logger := zap.NewNop().Sugar()
+	sqlite, err := NewSQLite(":memory:", logger)
+	if err != nil {
+		t.Fatalf("Failed to create SQLite: %v", err)
+	}
+
+	userStorage := NewSQLiteUserStorage(sqlite, logger)
+
+	cleanup := func() {
+		sqlite.Close()
+	}
+
+	return sqlite, userStorage, cleanup
+}
+
+// TestSQLite_FileDatabase tests using file-based SQLite database
+func TestSQLite_FileDatabase(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+
+	// Use temporary file
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+
+	sqlite, err := NewSQLite(dbPath, logger)
+	require.NoError(t, err)
+	defer sqlite.Close()
+
+	// Create a table and insert data
+	_, err = sqlite.DB.Exec(`
+		CREATE TABLE IF NOT EXISTS test_persist (
+			id INTEGER PRIMARY KEY,
+			value TEXT
+		)
+	`)
+	require.NoError(t, err)
+
+	_, err = sqlite.DB.Exec("INSERT INTO test_persist (id, value) VALUES (?, ?)", 1, "test")
+	assert.NoError(t, err)
+
+	// Close database
+	sqlite.Close()
+
+	// Reopen database
+	sqlite2, err := NewSQLite(dbPath, logger)
+	require.NoError(t, err)
+	defer sqlite2.Close()
+
+	// Verify data persisted
+	var value string
+	err = sqlite2.DB.QueryRow("SELECT value FROM test_persist WHERE id = ?", 1).Scan(&value)
+	assert.NoError(t, err)
+	assert.Equal(t, "test", value)
+}
+
+// Benchmark tests
+
+func BenchmarkSQLite_Insert(b *testing.B) {
+	logger := zap.NewNop().Sugar()
+	sqlite, err := NewSQLite(":memory:", logger)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer sqlite.Close()
+
+	_, err = sqlite.DB.Exec(`
+		CREATE TABLE IF NOT EXISTS bench_insert (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			value TEXT
+		)
+	`)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := sqlite.DB.Exec("INSERT INTO bench_insert (value) VALUES (?)", "test")
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkSQLite_PreparedInsert(b *testing.B) {
+	logger := zap.NewNop().Sugar()
+	sqlite, err := NewSQLite(":memory:", logger)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer sqlite.Close()
+
+	_, err = sqlite.DB.Exec(`
+		CREATE TABLE IF NOT EXISTS bench_prepared (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			value TEXT
+		)
+	`)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	stmt, err := sqlite.DB.Prepare("INSERT INTO bench_prepared (value) VALUES (?)")
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer stmt.Close()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := stmt.Exec("test")
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}

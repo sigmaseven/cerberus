@@ -1,0 +1,786 @@
+// Package main implements a migration utility for converting legacy JSON condition-based rules to SIGMA format.
+//
+// This utility reads all rules with non-empty 'conditions' field (legacy format) and converts them
+// to basic SIGMA YAML format. It updates the rule type to 'sigma', populates the sigma_yaml field,
+// and clears the legacy conditions field.
+//
+// Security considerations:
+//   - Validates all input data before processing
+//   - Uses prepared statements to prevent SQL injection
+//
+// WARNING: If getLegacyRules is modified to accept dynamic sorting parameters,
+// ensure proper SQL injection prevention by validating sort columns against an allowlist.
+//   - Creates database backups before migration
+//   - Provides dry-run mode to preview changes without committing
+//   - Properly handles context cancellation for graceful shutdown
+//   - Validates SIGMA YAML size limits (1MB max) to prevent YAML bombs
+//
+// Usage:
+//
+//	migrate-legacy-rules --db-path=/path/to/cerberus.db [--dry-run] [--backup-dir=/path/to/backups]
+//
+// Exit codes:
+//   - 0: Success (no legacy rules found or all rules migrated)
+//   - 1: Operational error (invalid arguments, database error, etc.)
+//   - 2: Validation error (invalid rules detected)
+//   - 3: Migration error (failed to migrate one or more rules)
+package main
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"strings"
+	"syscall"
+	"time"
+
+	"gopkg.in/yaml.v3"
+	_ "modernc.org/sqlite"
+)
+
+// File operation constants
+const (
+	maxSigmaYAMLSize        = 1024 * 1024      // maxSigmaYAMLSize defines the maximum allowed size for generated SIGMA YAML (1MB)
+	backupFileMode          = 0600             // backupFileMode defines file permissions for backup files (owner read/write only)
+	backupDirMode           = 0755             // backupDirMode defines directory permissions for backup directories (owner rwx, group/other rx)
+	defaultMigrationTimeout = 30 * time.Minute // Default timeout for migration operations
+)
+
+// exitCode defines standard exit codes for the migration utility
+type exitCode int
+
+const (
+	exitSuccess        exitCode = 0 // No legacy rules or successful migration
+	exitOperationalErr exitCode = 1 // Database errors, invalid arguments, etc.
+	exitValidationErr  exitCode = 2 // Invalid rules detected
+	exitMigrationErr   exitCode = 3 // Migration failures
+)
+
+// legacyCondition represents a single condition from the legacy format
+type legacyCondition struct {
+	Field    string      `json:"field"`
+	Operator string      `json:"operator"`
+	Value    interface{} `json:"value"`
+	Logic    string      `json:"logic,omitempty"` // AND, OR
+}
+
+// legacyRule represents a rule with legacy JSON conditions
+type legacyRule struct {
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	Description string            `json:"description"`
+	Severity    string            `json:"severity"`
+	Conditions  []legacyCondition `json:"conditions"`
+	CreatedAt   time.Time         `json:"created_at"`
+	UpdatedAt   time.Time         `json:"updated_at"`
+}
+
+// migrationResult tracks the outcome of the migration
+type migrationResult struct {
+	TotalRules    int
+	MigratedRules int
+	SkippedRules  int
+	FailedRules   int
+	Errors        []migrationError
+}
+
+// migrationError captures detailed error information for a specific rule
+type migrationError struct {
+	RuleID   string
+	Phase    string
+	Original error // Store original error for wrapping
+}
+
+func (me migrationError) Error() string {
+	return fmt.Sprintf("[%s] %s: %v", me.Phase, me.RuleID, me.Original)
+}
+
+func (me migrationError) Unwrap() error {
+	return me.Original
+}
+
+// config holds the migration utility configuration
+type config struct {
+	dbPath    string
+	dryRun    bool
+	backupDir string
+	timeout   time.Duration
+}
+
+// parseFlags parses command-line flags and returns the configuration.
+// Returns an error if required flags are missing or invalid.
+// Accepts a FlagSet for testability.
+func parseFlags(fs *flag.FlagSet) (*config, error) {
+	cfg := &config{}
+
+	fs.StringVar(&cfg.dbPath, "db-path", "", "Path to SQLite database file (required)")
+	fs.BoolVar(&cfg.dryRun, "dry-run", false, "Perform migration without committing changes (default: false)")
+	fs.StringVar(&cfg.backupDir, "backup-dir", "./backups", "Directory for database backups (default: ./backups)")
+	fs.DurationVar(&cfg.timeout, "timeout", defaultMigrationTimeout, "Maximum migration duration (default: 30m)")
+
+	if err := fs.Parse(os.Args[1:]); err != nil {
+		return nil, fmt.Errorf("failed to parse flags: %w", err)
+	}
+
+	// Validate required flags
+	if cfg.dbPath == "" {
+		return nil, errors.New("--db-path is required")
+	}
+
+	// Validate database path exists
+	if _, err := os.Stat(cfg.dbPath); err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("database file does not exist: %s", cfg.dbPath)
+		}
+		return nil, fmt.Errorf("failed to access database file: %w", err)
+	}
+
+	// Validate backup directory (create if doesn't exist)
+	if cfg.backupDir != "" {
+		if err := os.MkdirAll(cfg.backupDir, backupDirMode); err != nil {
+			return nil, fmt.Errorf("failed to create backup directory: %w", err)
+		}
+	}
+
+	// Validate timeout
+	if cfg.timeout <= 0 {
+		return nil, fmt.Errorf("timeout must be positive, got: %v", cfg.timeout)
+	}
+
+	return cfg, nil
+}
+
+// createBackup creates a backup of the database before migration.
+// Returns the backup file path and any error encountered.
+//
+// Security: Validates paths to prevent directory traversal attacks and resolves symlinks.
+func createBackup(ctx context.Context, dbPath, backupDir string) (string, error) {
+	if dbPath == "" {
+		return "", errors.New("database path cannot be empty")
+	}
+	if backupDir == "" {
+		return "", errors.New("backup directory cannot be empty")
+	}
+
+	// Check context before starting
+	select {
+	case <-ctx.Done():
+		return "", fmt.Errorf("backup cancelled: %w", ctx.Err())
+	default:
+	}
+
+	// Generate backup filename with timestamp
+	timestamp := time.Now().Format("20060102-150405")
+	backupName := fmt.Sprintf("cerberus-pre-migration-%s.db", timestamp)
+	backupPath := filepath.Join(backupDir, backupName)
+
+	// Security: Clean path to prevent directory traversal
+	cleanBackupPath := filepath.Clean(backupPath)
+	if !strings.HasPrefix(cleanBackupPath, filepath.Clean(backupDir)) {
+		return "", fmt.Errorf("invalid backup path: potential directory traversal detected")
+	}
+
+	// Security: Resolve symlinks to prevent writing to unintended locations
+	resolvedBackupPath, err := filepath.EvalSymlinks(cleanBackupPath)
+	if err != nil && !os.IsNotExist(err) {
+		return "", fmt.Errorf("failed to resolve symlinks in backup path: %w", err)
+	}
+	// If file doesn't exist yet, resolve the directory and append the filename
+	if os.IsNotExist(err) {
+		backupDirResolved, dirErr := filepath.EvalSymlinks(backupDir)
+		if dirErr != nil {
+			return "", fmt.Errorf("failed to resolve symlinks in backup directory: %w", dirErr)
+		}
+		resolvedBackupPath = filepath.Join(backupDirResolved, backupName)
+		// Verify the resolved path is still within the backup directory
+		if !strings.HasPrefix(resolvedBackupPath, backupDirResolved) {
+			return "", fmt.Errorf("invalid backup path after symlink resolution: potential directory traversal")
+		}
+	}
+
+	// Check context before write
+	select {
+	case <-ctx.Done():
+		return "", fmt.Errorf("backup cancelled before write: %w", ctx.Err())
+	default:
+	}
+
+	// Read source database
+	sourceData, err := os.ReadFile(dbPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read source database: %w", err)
+	}
+
+	// Write backup file
+	if err := os.WriteFile(resolvedBackupPath, sourceData, backupFileMode); err != nil {
+		return "", fmt.Errorf("failed to write backup file: %w", err)
+	}
+
+	// Verify backup file size matches source
+	backupInfo, err := os.Stat(resolvedBackupPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to verify backup: %w", err)
+	}
+
+	sourceInfo, err := os.Stat(dbPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to stat source database: %w", err)
+	}
+
+	if backupInfo.Size() != sourceInfo.Size() {
+		// Clean up incomplete backup
+		_ = os.Remove(resolvedBackupPath)
+		return "", fmt.Errorf("backup verification failed: size mismatch (expected %d, got %d)",
+			sourceInfo.Size(), backupInfo.Size())
+	}
+
+	return resolvedBackupPath, nil
+}
+
+// queryable is an interface implemented by both *sql.DB and *sql.Tx for testability
+type queryable interface {
+	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
+}
+
+// parseRFC3339Timestamp parses an RFC3339 timestamp string with error context
+func parseRFC3339Timestamp(timestampStr, fieldName, ruleID string) (time.Time, error) {
+	t, err := time.Parse(time.RFC3339, timestampStr)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to parse %s for rule %s: %w", fieldName, ruleID, err)
+	}
+	return t, nil
+}
+
+// getLegacyRules retrieves all rules with non-empty conditions field.
+// Returns a slice of legacy rules and any error encountered.
+// Accepts both *sql.DB and *sql.Tx via the queryable interface for testability.
+//
+// WARNING: Uses fixed ORDER BY clause. If dynamic sorting is added, ensure SQL injection
+// protection by validating sort columns against an allowlist of valid column names.
+func getLegacyRules(ctx context.Context, db queryable) ([]legacyRule, error) {
+	if db == nil {
+		return nil, errors.New("database connection cannot be nil")
+	}
+
+	query := `
+		SELECT id, name, description, severity, conditions, created_at, updated_at
+		FROM rules
+		WHERE conditions IS NOT NULL
+		  AND TRIM(conditions) != ''
+		  AND conditions != '[]'
+		ORDER BY id
+	`
+
+	rows, err := db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query legacy rules: %w", err)
+	}
+	defer rows.Close()
+
+	var rules []legacyRule
+	for rows.Next() {
+		// Check for context cancellation during iteration
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("query cancelled during row iteration: %w", ctx.Err())
+		default:
+		}
+		var rule legacyRule
+		var conditionsJSON string
+		var createdAtStr, updatedAtStr string
+
+		if err := rows.Scan(
+			&rule.ID,
+			&rule.Name,
+			&rule.Description,
+			&rule.Severity,
+			&conditionsJSON,
+			&createdAtStr,
+			&updatedAtStr,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan rule row: %w", err)
+		}
+
+		// Parse conditions JSON
+		if err := json.Unmarshal([]byte(conditionsJSON), &rule.Conditions); err != nil {
+			return nil, fmt.Errorf("failed to parse conditions for rule %s: %w", rule.ID, err)
+		}
+
+		// Parse timestamps using helper function
+		rule.CreatedAt, err = parseRFC3339Timestamp(createdAtStr, "created_at", rule.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		rule.UpdatedAt, err = parseRFC3339Timestamp(updatedAtStr, "updated_at", rule.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		rules = append(rules, rule)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating rule rows: %w", err)
+	}
+
+	return rules, nil
+}
+
+// convertToSigmaYAML converts a legacy rule to SIGMA YAML format.
+// Returns the SIGMA YAML string and any error encountered.
+//
+// Security:
+//   - Validates YAML size to prevent YAML bombs
+//   - Properly escapes all field values
+//   - Returns errors for invalid input data
+//   - Validates field names, operators, and values (Issue #5)
+//
+// Limitations:
+//   - Complex OR logic between conditions is simplified to AND logic in SIGMA
+//   - Legacy conditions with "logic": "OR" are converted to separate selection blocks
+//   - This is a best-effort conversion; manual review is recommended for complex rules
+func convertToSigmaYAML(rule legacyRule) (string, error) {
+	if rule.ID == "" {
+		return "", errors.New("rule ID cannot be empty")
+	}
+	if rule.Name == "" {
+		return "", errors.New("rule name cannot be empty")
+	}
+	if len(rule.Conditions) == 0 {
+		return "", errors.New("rule must have at least one condition")
+	}
+
+	// Security: Validate all conditions before processing (Issue #5)
+	for i, cond := range rule.Conditions {
+		// Validate field name is not empty
+		if strings.TrimSpace(cond.Field) == "" {
+			return "", fmt.Errorf("condition %d has empty field name", i)
+		}
+		// Validate field name length (prevent DoS via extremely long field names)
+		if len(cond.Field) > 1000 {
+			return "", fmt.Errorf("condition %d field name exceeds maximum length of 1000 characters", i)
+		}
+		// Validate operator value
+		validOperators := map[string]bool{
+			"equals": true, "contains": true, "starts_with": true,
+			"ends_with": true, "regex": true,
+		}
+		if cond.Operator != "" && !validOperators[cond.Operator] {
+			// Log warning but continue with keyword match fallback
+			fmt.Fprintf(os.Stderr, "Warning: unsupported operator '%s' in condition %d for rule %s, using keyword match\n",
+				cond.Operator, i, rule.ID)
+		}
+		// Validate value is not nil
+		if cond.Value == nil {
+			return "", fmt.Errorf("condition %d has nil value", i)
+		}
+	}
+
+	// Build SIGMA detection logic from legacy conditions
+	detection := make(map[string]interface{})
+
+	// Check if we have OR logic in conditions
+	hasORLogic := false
+	for _, cond := range rule.Conditions {
+		if strings.ToUpper(cond.Logic) == "OR" {
+			hasORLogic = true
+			break
+		}
+	}
+
+	if hasORLogic {
+		// Handle OR logic by creating separate selection blocks
+		// SIGMA will combine them with OR condition
+		conditionParts := []string{}
+		for i, cond := range rule.Conditions {
+			selectionName := fmt.Sprintf("selection_%d", i+1)
+			selection := make(map[string]interface{})
+
+			sigmaKey := convertOperatorToSigmaModifier(cond.Field, cond.Operator, i)
+			selection[sigmaKey] = cond.Value
+
+			detection[selectionName] = selection
+			conditionParts = append(conditionParts, selectionName)
+		}
+		// Join with OR
+		detection["condition"] = strings.Join(conditionParts, " or ")
+	} else {
+		// Handle AND logic (default)
+		selection := make(map[string]interface{})
+		for i, cond := range rule.Conditions {
+			sigmaKey := convertOperatorToSigmaModifier(cond.Field, cond.Operator, i)
+			selection[sigmaKey] = cond.Value
+		}
+		detection["selection"] = selection
+		detection["condition"] = "selection"
+	}
+
+	// Build SIGMA YAML structure
+	sigmaRule := map[string]interface{}{
+		"title":       rule.Name,
+		"id":          rule.ID,
+		"description": rule.Description,
+		"status":      "test", // Mark as test since auto-converted
+		"author":      "Cerberus Migration Tool",
+		"date":        rule.CreatedAt.Format("2006/01/02"),
+		"modified":    rule.UpdatedAt.Format("2006/01/02"),
+		"logsource": map[string]interface{}{
+			"category": "application",
+			"product":  "cerberus",
+		},
+		"detection": detection,
+		"level":     strings.ToLower(rule.Severity),
+	}
+
+	// Marshal to YAML
+	yamlBytes, err := yaml.Marshal(sigmaRule)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal SIGMA YAML: %w", err)
+	}
+
+	yamlStr := string(yamlBytes)
+
+	// Security: Validate YAML size to prevent YAML bombs
+	if len(yamlStr) > maxSigmaYAMLSize {
+		return "", fmt.Errorf("generated SIGMA YAML exceeds maximum size of %d bytes (got %d)",
+			maxSigmaYAMLSize, len(yamlStr))
+	}
+
+	return yamlStr, nil
+}
+
+// convertOperatorToSigmaModifier converts a legacy operator to a SIGMA field modifier
+func convertOperatorToSigmaModifier(field, operator string, index int) string {
+	switch operator {
+	case "equals":
+		return field
+	case "contains":
+		return fmt.Sprintf("%s|contains", field)
+	case "starts_with":
+		return fmt.Sprintf("%s|startswith", field)
+	case "ends_with":
+		return fmt.Sprintf("%s|endswith", field)
+	case "regex":
+		return fmt.Sprintf("%s|re", field)
+	default:
+		// For unsupported operators, use basic keyword match
+		return fmt.Sprintf("keyword_%d", index)
+	}
+}
+
+// compositeError combines a primary error with a rollback error
+type compositeError struct {
+	primary  error
+	rollback error
+}
+
+func (ce compositeError) Error() string {
+	return fmt.Sprintf("%v (rollback also failed: %v)", ce.primary, ce.rollback)
+}
+
+func (ce compositeError) Unwrap() error {
+	return ce.primary
+}
+
+// migrateRules performs the actual migration of legacy rules to SIGMA format.
+// Returns migration statistics and any error encountered.
+//
+// The migration is performed in a single database transaction for atomicity.
+// If dryRun is true, the transaction is rolled back at the end.
+func migrateRules(ctx context.Context, db *sql.DB, dryRun bool) (*migrationResult, error) {
+	if db == nil {
+		return nil, errors.New("database connection cannot be nil")
+	}
+
+	result := &migrationResult{
+		Errors: make([]migrationError, 0),
+	}
+
+	// Begin transaction for atomicity
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	// Ensure transaction is rolled back on error or panic (Issue #6: check tx != nil)
+	defer func() {
+		if p := recover(); p != nil {
+			// Issue #6: Check tx is not nil before rollback
+			if tx != nil {
+				if rbErr := tx.Rollback(); rbErr != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to rollback transaction after panic: %v\n", rbErr)
+				}
+			}
+			panic(p) // Re-panic after rollback
+		}
+	}()
+
+	// Get all legacy rules using the transaction to ensure consistency
+	legacyRules, err := getLegacyRules(ctx, tx)
+	if err != nil {
+		// Issue #3: Use compositeError for proper error wrapping
+		if rbErr := tx.Rollback(); rbErr != nil {
+			return nil, compositeError{
+				primary:  fmt.Errorf("failed to retrieve legacy rules: %w", err),
+				rollback: rbErr,
+			}
+		}
+		return nil, fmt.Errorf("failed to retrieve legacy rules: %w", err)
+	}
+
+	result.TotalRules = len(legacyRules)
+
+	// If no legacy rules found, return success
+	if result.TotalRules == 0 {
+		if rbErr := tx.Rollback(); rbErr != nil {
+			return nil, fmt.Errorf("failed to rollback transaction for empty result: %w", rbErr)
+		}
+		return result, nil
+	}
+
+	// Prepare update statement
+	updateStmt, err := tx.PrepareContext(ctx, `
+		UPDATE rules
+		SET type = 'sigma',
+		    sigma_yaml = ?,
+		    conditions = NULL,
+		    updated_at = ?
+		WHERE id = ?
+	`)
+	if err != nil {
+		// Issue #3: Use compositeError
+		if rbErr := tx.Rollback(); rbErr != nil {
+			return nil, compositeError{
+				primary:  fmt.Errorf("failed to prepare update statement: %w", err),
+				rollback: rbErr,
+			}
+		}
+		return nil, fmt.Errorf("failed to prepare update statement: %w", err)
+	}
+	defer updateStmt.Close()
+
+	// Process each legacy rule
+	for _, rule := range legacyRules {
+		// Check for context cancellation
+		select {
+		case <-ctx.Done():
+			// Issue #3: Use compositeError
+			if rbErr := tx.Rollback(); rbErr != nil {
+				return nil, compositeError{
+					primary:  fmt.Errorf("migration cancelled during rule processing: %w", ctx.Err()),
+					rollback: rbErr,
+				}
+			}
+			return nil, fmt.Errorf("migration cancelled during rule processing: %w", ctx.Err())
+		default:
+		}
+
+		// Convert to SIGMA YAML
+		sigmaYAML, err := convertToSigmaYAML(rule)
+		if err != nil {
+			result.FailedRules++
+			result.Errors = append(result.Errors, migrationError{
+				RuleID:   rule.ID,
+				Phase:    "conversion",
+				Original: err,
+			})
+			continue
+		}
+
+		// Update database
+		updateTime := time.Now().UTC().Format(time.RFC3339)
+		_, err = updateStmt.ExecContext(ctx, sigmaYAML, updateTime, rule.ID)
+		if err != nil {
+			result.FailedRules++
+			result.Errors = append(result.Errors, migrationError{
+				RuleID:   rule.ID,
+				Phase:    "database_update",
+				Original: err,
+			})
+			continue
+		}
+
+		result.MigratedRules++
+	}
+
+	// Commit or rollback based on dry-run flag
+	if dryRun {
+		if err := tx.Rollback(); err != nil {
+			return nil, fmt.Errorf("failed to rollback dry-run transaction: %w", err)
+		}
+	} else {
+		if err := tx.Commit(); err != nil {
+			// Issue #1: Test commit failure - try to rollback on commit failure
+			// Note: After commit fails, rollback may also fail (transaction may be invalid)
+			if rbErr := tx.Rollback(); rbErr != nil {
+				return nil, compositeError{
+					primary:  fmt.Errorf("failed to commit migration transaction: %w", err),
+					rollback: rbErr,
+				}
+			}
+			return nil, fmt.Errorf("failed to commit migration transaction: %w", err)
+		}
+	}
+
+	return result, nil
+}
+
+// printResults outputs migration results in a human-readable format
+func printResults(result *migrationResult, dryRun bool) {
+	fmt.Println("\n========================================")
+	fmt.Println("MIGRATION SUMMARY")
+	fmt.Println("========================================")
+	fmt.Printf("Total rules examined:     %d\n", result.TotalRules)
+	fmt.Printf("Rules migrated:           %d\n", result.MigratedRules)
+	fmt.Printf("Rules skipped:            %d\n", result.SkippedRules)
+	fmt.Printf("Rules failed:             %d\n", result.FailedRules)
+
+	if len(result.Errors) > 0 {
+		fmt.Println("\n========================================")
+		fmt.Println("MIGRATION ERRORS")
+		fmt.Println("========================================")
+		for _, err := range result.Errors {
+			fmt.Printf("[%s] %s: %v\n", err.Phase, err.RuleID, err.Original)
+		}
+	}
+
+	if dryRun {
+		fmt.Println("\n========================================")
+		fmt.Println("DRY RUN - No changes committed")
+		fmt.Println("========================================")
+	}
+
+	fmt.Println()
+}
+
+// validateAndPrepare validates configuration and prepares the migration environment
+func validateAndPrepare(ctx context.Context, cfg *config) (*sql.DB, exitCode) {
+	fmt.Printf("Legacy Rules Migration Utility\n")
+	fmt.Printf("Database: %s\n", cfg.dbPath)
+	fmt.Printf("Dry Run:  %v\n", cfg.dryRun)
+	fmt.Printf("Timeout:  %v\n", cfg.timeout)
+	fmt.Println()
+
+	// Create database backup (skip in dry-run mode)
+	if !cfg.dryRun {
+		fmt.Printf("Creating backup in %s...\n", cfg.backupDir)
+		backupPath, err := createBackup(ctx, cfg.dbPath, cfg.backupDir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating backup: %v\n", err)
+			return nil, exitOperationalErr
+		}
+		fmt.Printf("Backup created: %s\n", backupPath)
+	}
+
+	// Open database connection
+	db, err := sql.Open("sqlite", cfg.dbPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error opening database: %v\n", err)
+		return nil, exitOperationalErr
+	}
+
+	// Enable WAL mode for better concurrency
+	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to enable WAL mode: %v\n", err)
+	}
+
+	return db, exitSuccess
+}
+
+// performMigration executes the migration and returns the appropriate exit code
+func performMigration(ctx context.Context, db *sql.DB, cfg *config) exitCode {
+	// Perform migration
+	fmt.Println("Scanning for legacy rules...")
+	result, err := migrateRules(ctx, db, cfg.dryRun)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error during migration: %v\n", err)
+		return exitMigrationErr
+	}
+
+	// Print results
+	printResults(result, cfg.dryRun)
+
+	// Determine exit code based on results
+	if result.TotalRules == 0 {
+		fmt.Println("SUCCESS: No legacy rules found. All rules are already in SIGMA format.")
+		return exitSuccess
+	}
+
+	if result.FailedRules > 0 {
+		fmt.Fprintf(os.Stderr, "ERROR: Migration failed for %d rules. See errors above.\n", result.FailedRules)
+		return exitMigrationErr
+	}
+
+	if cfg.dryRun {
+		fmt.Println("DRY RUN COMPLETE: Migration would succeed. Run without --dry-run to apply changes.")
+		return exitSuccess
+	}
+
+	fmt.Println("SUCCESS: All rules migrated to SIGMA format.")
+	return exitSuccess
+}
+
+// run executes the main migration logic and returns an exit code
+func run(ctx context.Context) exitCode {
+	// Create a new FlagSet to avoid global state issues in tests
+	fs := flag.NewFlagSet("migrate-legacy-rules", flag.ContinueOnError)
+
+	// Parse command-line flags
+	cfg, err := parseFlags(fs)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "\nUsage: migrate-legacy-rules --db-path=<path> [--dry-run] [--backup-dir=<path>]\n")
+		fs.PrintDefaults()
+		return exitOperationalErr
+	}
+
+	// Validate and prepare environment
+	db, code := validateAndPrepare(ctx, cfg)
+	if code != exitSuccess {
+		return code
+	}
+	defer db.Close()
+
+	// Perform migration and return result
+	return performMigration(ctx, db, cfg)
+}
+
+func main() {
+	// Issue #8: Add configurable timeout context
+	timeout := defaultMigrationTimeout
+	// Allow override via environment variable for operational flexibility
+	if timeoutStr := os.Getenv("MIGRATION_TIMEOUT"); timeoutStr != "" {
+		if d, err := time.ParseDuration(timeoutStr); err == nil && d > 0 {
+			timeout = d
+		}
+	}
+
+	// Set up context with timeout and cancellation for graceful shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	// Set up signal handling for graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	// Issue #4: Ensure signal handler is ready before proceeding
+	ready := make(chan struct{})
+	go func() {
+		close(ready) // Signal that handler is ready
+		<-sigChan
+		fmt.Println("\nReceived interrupt signal. Shutting down gracefully...")
+		cancel()
+	}()
+	<-ready // Wait for handler to be ready
+
+	// Execute migration and exit with appropriate code
+	exitCode := run(ctx)
+	os.Exit(int(exitCode))
+}

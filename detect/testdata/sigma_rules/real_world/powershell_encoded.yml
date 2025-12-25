@@ -1,0 +1,28 @@
+title: Suspicious Encoded PowerShell Command
+id: sigma-real-002
+status: test
+description: Detects suspicious encoded PowerShell commands commonly used by malware
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\powershell.exe'
+    selection_enc:
+        CommandLine|contains:
+            - '-enc'
+            - '-EncodedCommand'
+            - '-ec'
+            - 'FromBase64String'
+    selection_bypass:
+        CommandLine|contains:
+            - '-exec bypass'
+            - '-ExecutionPolicy Bypass'
+            - '-windowstyle hidden'
+            - '-w hidden'
+    condition: selection and (selection_enc or selection_bypass)
+level: high
+tags:
+    - attack.defense_evasion
+    - attack.execution
+    - attack.t1059.001

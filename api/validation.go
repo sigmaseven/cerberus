@@ -3,8 +3,6 @@ package api
 import (
 	"errors"
 	"fmt"
-	"net"
-	"net/http"
 	"net/url"
 	"strings"
 
@@ -41,42 +39,45 @@ func validateBaseRule(id, name, description, severity string, version int) error
 	return nil
 }
 
-func validateConditions(conditions []core.Condition) error {
-	for i, cond := range conditions {
-		field := strings.TrimSpace(cond.Field)
-		operator := strings.TrimSpace(cond.Operator)
-		logic := strings.TrimSpace(cond.Logic)
-		if field == "" {
-			return fmt.Errorf("condition %d: field is required", i)
-		}
-		if !validOperators[operator] {
-			return fmt.Errorf("condition %d: invalid operator", i)
-		}
-		if cond.Value == nil {
-			return fmt.Errorf("condition %d: value is required", i)
-		}
-		if logic != "" && !validLogics[logic] {
-			return fmt.Errorf("condition %d: logic must be AND or OR", i)
-		}
-	}
-	return nil
-}
+const (
+	// SECURITY: Input length limits to prevent DoS attacks
+	MaxDescLength = 2000 // Maximum length for description fields
+)
+
+// TASK #184: validateConditions function deleted - core.Condition struct removed
+// All rules now use SIGMA YAML for detection logic
 
 func validateRule(rule *core.Rule) error {
+	// First validate the rule type and SIGMA/CQL field requirements
+	// This calls core.Rule.Validate() which checks:
+	// - SIGMA rules must have sigma_yaml and cannot have query
+	// - CQL rules must have query and cannot have sigma_yaml
+	if err := rule.Validate(); err != nil {
+		return err
+	}
+
+	// Additional validation for base rule fields
 	if err := validateBaseRule(rule.ID, rule.Name, rule.Description, rule.Severity, rule.Version); err != nil {
 		return err
 	}
-	if len(rule.Conditions) == 0 {
-		return errors.New("at least one condition is required")
+
+	// TASK #184: Conditions validation removed - SIGMA rules use SigmaYAML, CQL rules use Query
+
+	// Validate YAML syntax for SIGMA rules
+	ruleType := strings.ToUpper(strings.TrimSpace(rule.Type))
+	if ruleType == "SIGMA" && strings.TrimSpace(rule.SigmaYAML) != "" {
+		if _, err := rule.ParsedSigmaRule(); err != nil {
+			return fmt.Errorf("invalid sigma_yaml: %w", err)
+		}
 	}
-	if err := validateConditions(rule.Conditions); err != nil {
-		return err
-	}
+
+	// Validate actions for all rule types
 	for _, action := range rule.Actions {
 		if err := validateAction(&action); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -136,33 +137,6 @@ func validateEmailAction(config map[string]interface{}) error {
 	return nil
 }
 
-// getRealIP extracts the real client IP, considering proxy headers if trusted
-func getRealIP(r *http.Request, trustProxy bool) string {
-	// Check X-Forwarded-For header if proxy headers are trusted
-	if trustProxy {
-		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-			// Take the first IP in case of multiple
-			ips := strings.Split(xff, ",")
-			if len(ips) > 0 {
-				ip := strings.TrimSpace(ips[0])
-				if ip != "" && net.ParseIP(ip) != nil {
-					return ip
-				}
-			}
-		}
-		// Check X-Real-IP header
-		if xri := r.Header.Get("X-Real-IP"); xri != "" && net.ParseIP(xri) != nil {
-			return xri
-		}
-	}
-	// Fallback to RemoteAddr
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
-}
-
 func validateAction(action *core.Action) error {
 	atype := strings.TrimSpace(action.Type)
 	validTypes := map[string]bool{"webhook": true, "jira": true, "email": true, "slack": true}
@@ -193,19 +167,95 @@ func validateCorrelationRule(rule *core.CorrelationRule) error {
 	if rule.Window <= 0 {
 		return errors.New("correlation rule window must be positive")
 	}
-	if len(rule.Conditions) == 0 {
-		return errors.New("at least one condition is required")
-	}
+	// TASK #184: Conditions validation removed - correlation rules use sequence-based matching
 	if len(rule.Sequence) == 0 {
 		return errors.New("sequence is required")
-	}
-	if err := validateConditions(rule.Conditions); err != nil {
-		return err
 	}
 	for _, action := range rule.Actions {
 		if err := validateAction(&action); err != nil {
 			return err
 		}
 	}
+	return nil
+}
+
+// ValidateRuleForCreation validates rule format before creation/update.
+// TASK #184: Conditions field removed - SIGMA rules use sigma_yaml exclusively
+//
+// Security Considerations:
+// - Enforces type-specific field requirements (SIGMA vs CQL)
+// - Validates required fields are populated before persistence
+//
+// Validation Rules:
+// - SIGMA rules (or unspecified type defaulting to SIGMA):
+//   * Must have sigma_yaml field populated
+//   * Cannot have query field (CQL-specific)
+// - CQL rules:
+//   * Must have query field populated
+//   * Cannot have sigma_yaml field (SIGMA-specific)
+//
+// Returns:
+//   - nil if validation passes
+//   - error describing the validation failure
+func ValidateRuleForCreation(rule *core.Rule) error {
+	if rule == nil {
+		return fmt.Errorf("cannot validate nil rule")
+	}
+
+	// Normalize type for comparison (default to SIGMA if not specified)
+	// IMPORTANT: We normalize and PERSIST the type to ensure consistent storage
+	ruleType := strings.ToUpper(strings.TrimSpace(rule.Type))
+	if ruleType == "" {
+		ruleType = "SIGMA"
+	}
+	// Persist normalized type back to the rule struct for consistent storage
+	rule.Type = ruleType
+
+	// Get rule identifier for error messages
+	ruleID := rule.ID
+	if ruleID == "" {
+		ruleID = rule.Name
+	}
+	if ruleID == "" {
+		ruleID = "(unnamed)"
+	}
+
+	switch ruleType {
+	case "SIGMA":
+		// SIGMA rules must have sigma_yaml populated
+		if strings.TrimSpace(rule.SigmaYAML) == "" {
+			return fmt.Errorf("rule '%s': SIGMA rules must have sigma_yaml field populated", ruleID)
+		}
+
+		// SIGMA rules cannot have CQL query field
+		if strings.TrimSpace(rule.Query) != "" {
+			return fmt.Errorf("rule '%s': SIGMA rules cannot have query field (use sigma_yaml)", ruleID)
+		}
+
+		// Validate YAML syntax by parsing it
+		if _, err := rule.ParsedSigmaRule(); err != nil {
+			return fmt.Errorf("rule '%s': invalid sigma_yaml: %w", ruleID, err)
+		}
+
+	case "CQL":
+		// CQL rules must have query populated
+		if strings.TrimSpace(rule.Query) == "" {
+			return fmt.Errorf("rule '%s': CQL rules must have query field populated", ruleID)
+		}
+
+		// CQL rules cannot have SIGMA fields
+		if strings.TrimSpace(rule.SigmaYAML) != "" {
+			return fmt.Errorf("rule '%s': CQL rules cannot have sigma_yaml field (use query)", ruleID)
+		}
+
+	case "CORRELATION":
+		// Correlation rules use separate validation path
+		// They are not subject to this validation
+		return nil
+
+	default:
+		return fmt.Errorf("rule '%s': invalid rule type: %s (must be SIGMA, CQL, or CORRELATION)", ruleID, rule.Type)
+	}
+
 	return nil
 }

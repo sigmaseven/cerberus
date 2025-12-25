@@ -167,14 +167,13 @@ function EventSearch() {
       return;
     }
 
-    const search: Omit<SavedSearch, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'last_used' | 'use_count'> = {
+    const search: Omit<SavedSearch, 'id' | 'created_at' | 'updated_at' | 'usage_count'> = {
       name: savedSearchName,
       description: savedSearchDescription,
       query: query,
       tags: savedSearchTags,
-      is_default: false,
-      is_shared: false,
-      shared_with: [],
+      created_by: 'admin', // TODO: Get from auth context
+      is_public: false,
     };
 
     saveSearchMutation.mutate(search);
@@ -402,12 +401,63 @@ function EventSearch() {
       )}
 
       {/* Event Details Dialog */}
-      <Dialog open={eventDetailsOpen} onClose={() => setEventDetailsOpen(false)} maxWidth="md" fullWidth>
+      <Dialog open={eventDetailsOpen} onClose={() => setEventDetailsOpen(false)} maxWidth="lg" fullWidth>
         <DialogTitle>Event Details</DialogTitle>
         <DialogContent>
           {selectedEvent && (
-            <Box sx={{ fontFamily: 'monospace', fontSize: '0.875rem' }}>
-              <pre>{JSON.stringify(selectedEvent, null, 2)}</pre>
+            <Box sx={{ overflowX: 'auto' }}>
+              <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
+                <TableBody>
+                  {Object.entries(selectedEvent).map(([key, value]) => (
+                    <TableRow key={key}>
+                      <TableCell
+                        component="th"
+                        scope="row"
+                        sx={{
+                          fontWeight: 'bold',
+                          width: '180px',
+                          minWidth: '180px',
+                          verticalAlign: 'top',
+                          bgcolor: 'grey.50',
+                          borderRight: '1px solid',
+                          borderRightColor: 'divider',
+                        }}
+                      >
+                        {key}
+                      </TableCell>
+                      <TableCell
+                        sx={{
+                          wordBreak: 'break-word',
+                          whiteSpace: 'pre-wrap',
+                          fontFamily: 'monospace',
+                          fontSize: '0.85rem',
+                          maxWidth: 0, // This forces the cell to respect table width
+                        }}
+                      >
+                        {typeof value === 'object' && value !== null ? (
+                          <Box
+                            component="pre"
+                            sx={{
+                              margin: 0,
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word',
+                              fontSize: '0.85rem',
+                              bgcolor: 'grey.100',
+                              p: 1,
+                              borderRadius: 1,
+                              overflow: 'auto',
+                            }}
+                          >
+                            {JSON.stringify(value, null, 2)}
+                          </Box>
+                        ) : (
+                          String(value ?? 'N/A')
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </Box>
           )}
         </DialogContent>

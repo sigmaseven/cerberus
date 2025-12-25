@@ -1,0 +1,99 @@
+{
+  "_comment": "Cerberus SIEM Notification Configuration (#117 - Enhanced example)",
+  "_description": "Configure notification channels for alerts. Supports email, Slack, webhooks, and more.",
+  "_usage": "Copy this file to notify_config.json and configure your notification channels.",
+
+  "notifications": [
+    {
+      "_comment": "Email notifications via SMTP (Gmail example with app password)",
+      "enabled": true,
+      "type": "email",
+      "smtp_host": "smtp.gmail.com",
+      "smtp_port": 587,
+      "smtp_username": "your-email@gmail.com",
+      "smtp_password": "your-app-password",
+      "smtp_tls": true,
+      "from_address": "cerberus@yourdomain.com",
+      "to_addresses": ["security-team@yourdomain.com", "soc@yourdomain.com"],
+      "min_severity": "high",
+      "statuses": ["new", "pending"],
+      "rate_limit": {
+        "max_per_hour": 100,
+        "max_per_day": 500
+      }
+    },
+    {
+      "_comment": "Slack notifications via incoming webhook",
+      "enabled": true,
+      "type": "slack",
+      "webhook_url": "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK",
+      "channel": "#security-alerts",
+      "username": "Cerberus SIEM",
+      "icon_emoji": ":shield:",
+      "min_severity": "critical",
+      "mention_users": ["@security-team"],
+      "thread_replies": true
+    },
+    {
+      "_comment": "Generic webhook for custom integrations (SOAR, ticketing systems, etc.)",
+      "enabled": false,
+      "type": "webhook",
+      "webhook_url": "https://your-webhook-endpoint.com/alerts",
+      "webhook_method": "POST",
+      "webhook_headers": {
+        "Authorization": "Bearer your-api-token",
+        "X-API-Key": "your-api-key",
+        "Content-Type": "application/json"
+      },
+      "webhook_timeout": 30,
+      "retry_attempts": 3,
+      "min_severity": "medium"
+    },
+    {
+      "_comment": "Microsoft Teams notifications (webhook URL from Teams channel)",
+      "enabled": false,
+      "type": "teams",
+      "webhook_url": "https://outlook.office.com/webhook/YOUR_TEAMS_WEBHOOK",
+      "min_severity": "high",
+      "card_format": "adaptive"
+    },
+    {
+      "_comment": "PagerDuty integration for on-call escalation",
+      "enabled": false,
+      "type": "pagerduty",
+      "integration_key": "YOUR_PAGERDUTY_INTEGRATION_KEY",
+      "min_severity": "critical",
+      "dedupe_key_field": "alert_id",
+      "urgency": "high"
+    },
+    {
+      "_comment": "Syslog forwarding to external SIEM",
+      "enabled": false,
+      "type": "syslog",
+      "host": "siem.example.com",
+      "port": 514,
+      "protocol": "tcp",
+      "facility": "local0",
+      "min_severity": "low"
+    }
+  ],
+
+  "global_settings": {
+    "_comment": "Global notification settings (#117)",
+    "batch_notifications": true,
+    "batch_interval_seconds": 300,
+    "max_batch_size": 50,
+    "quiet_hours": {
+      "enabled": false,
+      "start": "22:00",
+      "end": "08:00",
+      "timezone": "UTC",
+      "exclude_critical": true
+    },
+    "deduplication": {
+      "enabled": true,
+      "window_minutes": 60,
+      "fields": ["rule_id", "source_ip"]
+    }
+  }
+}

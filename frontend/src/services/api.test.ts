@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import axios from 'axios';
 import { apiService } from './api';
-import { Event, Alert, Rule, CorrelationRule, Action, DashboardStats, ChartData } from '../types';
+import { Event, Alert, Rule, CorrelationRule, DashboardStats, ChartData } from '../types';
 
 // Mock axios
 vi.mock('axios');
@@ -12,20 +12,16 @@ const localStorageMock = {
   getItem: vi.fn(),
   setItem: vi.fn(),
   removeItem: vi.fn(),
-  clear: vi.fn(),
-};
+  clear: vi.fn()};
 Object.defineProperty(window, 'localStorage', {
-  value: localStorageMock,
-});
+  value: localStorageMock});
 
 // Mock WebSocket service
 vi.mock('./websocket', () => ({
   websocketService: {
     subscribe: vi.fn(),
     unsubscribe: vi.fn(),
-    isConnected: vi.fn().mockReturnValue(true),
-  },
-}));
+    isConnected: vi.fn().mockReturnValue(true)}}));
 
 describe('ApiService', () => {
   let mockAxiosInstance: any;
@@ -40,9 +36,7 @@ describe('ApiService', () => {
       delete: vi.fn(),
       interceptors: {
         request: { use: vi.fn() },
-        response: { use: vi.fn() },
-      },
-    };
+        response: { use: vi.fn() }}};
 
     mockedAxios.create.mockReturnValue(mockAxiosInstance);
   });
@@ -65,8 +59,7 @@ describe('ApiService', () => {
         total_events: 100,
         active_alerts: 5,
         rules_fired: 10,
-        system_health: 'OK',
-      };
+        system_health: 'OK'};
       const mockResponse = { data: mockStats };
       mockAxiosInstance.get.mockResolvedValue(mockResponse);
 
@@ -101,8 +94,7 @@ describe('ApiService', () => {
           severity: 'low',
           source_format: 'json',
           source_ip: '127.0.0.1',
-          timestamp: '2024-01-01T00:00:00Z',
-        },
+          timestamp: '2024-01-01T00:00:00Z'},
       ];
       const mockResponse = { data: mockEvents };
       mockAxiosInstance.get.mockResolvedValue(mockResponse);
@@ -133,8 +125,7 @@ describe('ApiService', () => {
           rule_id: 'rule1',
           severity: 'high',
           status: 'Pending' as any,
-          timestamp: '2024-01-01T00:00:00Z',
-        },
+          timestamp: '2024-01-01T00:00:00Z'},
       ];
       const mockResponse = { data: mockAlerts };
       mockAxiosInstance.get.mockResolvedValue(mockResponse);
@@ -177,8 +168,7 @@ describe('ApiService', () => {
           enabled: true,
           version: 1,
           conditions: [],
-          actions: [],
-        },
+          actions: []},
       ];
       const mockResponse = { data: mockRules };
       mockAxiosInstance.get.mockResolvedValue(mockResponse);
@@ -197,8 +187,7 @@ describe('ApiService', () => {
         enabled: true,
         version: 1,
         conditions: [],
-        actions: [],
-      };
+        actions: []};
       const mockResponse = { data: { ...newRule, id: '1' } };
       mockAxiosInstance.post.mockResolvedValue(mockResponse);
 
@@ -242,8 +231,7 @@ describe('ApiService', () => {
           window: 3000000000,
           sequence: ['event1', 'event2'],
           conditions: [],
-          actions: [],
-        },
+          actions: []},
       ];
       const mockResponse = { data: mockRules };
       mockAxiosInstance.get.mockResolvedValue(mockResponse);
@@ -263,8 +251,7 @@ describe('ApiService', () => {
         window: 3000000000,
         sequence: ['event1', 'event2'],
         conditions: [],
-        actions: [],
-      };
+        actions: []};
       const mockResponse = { data: { ...newRule, id: '1' } };
       mockAxiosInstance.post.mockResolvedValue(mockResponse);
 
@@ -281,8 +268,7 @@ describe('ApiService', () => {
         {
           id: '1',
           type: 'webhook',
-          config: { url: 'https://example.com' },
-        },
+          config: { url: 'https://example.com' }},
       ];
       const mockResponse = { data: mockActions };
       mockAxiosInstance.get.mockResolvedValue(mockResponse);
@@ -296,8 +282,7 @@ describe('ApiService', () => {
     it('should create action', async () => {
       const newAction: Omit<Action, 'id'> = {
         type: 'webhook',
-        config: { url: 'https://example.com' },
-      };
+        config: { url: 'https://example.com' }};
       const mockResponse = { data: { ...newAction, id: '1' } };
       mockAxiosInstance.post.mockResolvedValue(mockResponse);
 

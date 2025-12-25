@@ -4,7 +4,36 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+
+    <!-- Content Security Policy for Defense-in-Depth XSS Protection -->
+    <!--
+      DEVELOPMENT MODE CSP (this file)
+      - unsafe-eval: Required for Vite HMR (Hot Module Replacement)
+      - unsafe-inline: Required for Material-UI's dynamic styles
+      - WebSocket URLs: Local development servers (Vite:5173, Backend:8081)
+
+      PRODUCTION MODE CSP (via vite.config.ts transform)
+      - unsafe-eval is REMOVED automatically during build
+      - unsafe-inline remains for MUI compatibility
+      - WebSocket URLs are replaced with production domains via backend headers
+
+      SECURITY NOTES:
+      - frame-ancestors cannot be set via meta tag (use HTTP headers instead)
+      - Production deployments should set stricter CSP via HTTP headers
+      - Backend should implement nonce-based CSP for maximum security
+    -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-eval';
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com;
+      img-src 'self' data: https:;
+      connect-src 'self' ws://localhost:5173 ws://localhost:8081 wss://localhost:8081 ws://localhost:8082 wss://localhost:8082 http://localhost:8081;
+      base-uri 'self';
+      form-action 'self';
+    ">
+
+    <title>Cerberus SIEM</title>
   </head>
   <body>
     <div id="root"></div>

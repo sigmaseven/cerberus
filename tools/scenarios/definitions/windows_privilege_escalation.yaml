@@ -1,0 +1,62 @@
+name: "Windows Privilege Escalation"
+description: "User account created and added to privileged groups"
+duration: 90s
+attacker_user: "admin"
+target_user: "backdoor_user"
+target_host: "DC01.corp.local"
+
+events:
+  # Stage 1: Create new user account
+  - type: windows_user_account_created
+    count: 1
+    fields:
+      event_type: windows_user_account_created
+      event_id: 4720
+      computer_name: "${TARGET_HOST}"
+      target_user: "${TARGET_USER}"
+      subject_user: "${ATTACKER_USER}"
+      subject_domain: "CORP"
+      privileges: "-"
+
+  # Stage 2: Add user to Domain Admins
+  - type: windows_group_membership_changed
+    count: 1
+    delay: 15s
+    fields:
+      event_type: windows_group_membership_changed
+      event_id: 4732
+      computer_name: "${TARGET_HOST}"
+      target_user: "${TARGET_USER}"
+      subject_user: "${ATTACKER_USER}"
+      group_name: "Domain Admins"
+      group_sid: "S-1-5-21-*-512"
+      action: "added"
+
+  # Stage 3: Add to Administrators
+  - type: windows_group_membership_changed
+    count: 1
+    delay: 30s
+    fields:
+      event_type: windows_group_membership_changed
+      event_id: 4732
+      computer_name: "${TARGET_HOST}"
+      target_user: "${TARGET_USER}"
+      subject_user: "${ATTACKER_USER}"
+      group_name: "Administrators"
+      group_sid: "S-1-5-32-544"
+      action: "added"
+
+expected_alerts:
+  - rule_id: windows_user_account_created
+    severity: medium
+    min_count: 1
+  - rule_id: windows_group_membership_changed
+    severity: medium
+    min_count: 1
+  - rule_id: windows_privilege_escalation
+    severity: high
+    min_count: 1
+
+validation:
+  timeout: 120s
+  check_interval: 5s

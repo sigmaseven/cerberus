@@ -6,8 +6,7 @@ describe('AuthStore', () => {
     // Reset store state
     useAuthStore.setState({
       token: null,
-      isAuthenticated: false,
-    });
+      isAuthenticated: false});
   });
 
   describe('initial state', () => {

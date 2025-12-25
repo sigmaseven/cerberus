@@ -1,0 +1,48 @@
+{
+  "events": [
+    {
+      "name": "Suspicious PowerShell",
+      "fields": {
+        "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+        "CommandLine": "powershell.exe -enc aQBlAHgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQA",
+        "User": "DOMAIN\\user",
+        "ParentImage": "C:\\Windows\\explorer.exe",
+        "ProcessId": 1234
+      },
+      "should_match": ["test-basic-powershell-001"]
+    },
+    {
+      "name": "Normal PowerShell",
+      "fields": {
+        "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+        "CommandLine": "powershell.exe Get-Process",
+        "User": "DOMAIN\\user",
+        "ParentImage": "C:\\Windows\\explorer.exe",
+        "ProcessId": 1235
+      },
+      "should_match": []
+    },
+    {
+      "name": "Mimikatz Execution",
+      "fields": {
+        "Image": "C:\\temp\\mimikatz.exe",
+        "CommandLine": "mimikatz.exe sekurlsa::logonpasswords",
+        "User": "DOMAIN\\admin",
+        "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+        "ProcessId": 1236
+      },
+      "should_match": ["test-complex-cred-001"]
+    },
+    {
+      "name": "LSASS Procdump by SYSTEM",
+      "fields": {
+        "Image": "C:\\Windows\\System32\\procdump.exe",
+        "CommandLine": "procdump.exe -ma lsass.exe dump.dmp",
+        "User": "SYSTEM",
+        "ParentImage": "C:\\Windows\\System32\\services.exe",
+        "ProcessId": 1237
+      },
+      "should_match": []
+    }
+  ]
+}

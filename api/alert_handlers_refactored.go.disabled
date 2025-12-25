@@ -1,0 +1,570 @@
+package api
+
+import (
+	"errors"
+	"fmt"
+	"html"
+	"net/http"
+	"strings"
+	"time"
+	"unicode"
+
+	"cerberus/core"
+	"cerberus/service"
+	"cerberus/storage"
+
+	"github.com/gorilla/mux"
+)
+
+// ============================================================================
+// REFACTORED ALERT HANDLERS - Using Service Layer (Task 145.2)
+// ============================================================================
+//
+// ARCHITECTURE CHANGE:
+// - Handlers are now thin HTTP adapters (<50 lines each)
+// - Business logic moved to service layer (service/alert_service.go)
+// - Handlers only: parse request, call service, format response
+// - State validation, enrichment, and complex logic now in service
+//
+// BENEFITS:
+// - Easier testing (mock service vs. mock storage)
+// - Clear separation of HTTP concerns vs business logic
+// - Reusable business logic for other transports (gRPC, CLI, etc.)
+// - Handler functions stay under 50-line limit
+//
+// MIGRATION APPROACH:
+// - This file demonstrates refactored handlers
+// - Original handlers in alert_handlers.go for comparison
+// - After review, replace original with these implementations
+// ============================================================================
+
+// getAlertsRefactored godoc (all documentation remains identical)
+func (a *API) getAlertsRefactored(w http.ResponseWriter, r *http.Request) {
+	// Initialize service if not already available
+	alertService := a.getAlertService()
+	if alertService == nil {
+		writeError(w, http.StatusInternalServerError, "Alert service not available", nil, a.logger)
+		return
+	}
+
+	// Parse filters from query parameters
+	filters := ParseAlertFilters(r)
+
+	// Call service layer
+	alerts, total, err := alertService.ListAlerts(r.Context(), filters)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to retrieve alerts", err, a.logger)
+		return
+	}
+
+	// Create paginated response
+	response := NewPaginationResponse(alerts, total, filters.Page, filters.Limit)
+	a.respondJSON(w, response, http.StatusOK)
+}
+
+// getAlertByIDRefactored godoc
+func (a *API) getAlertByIDRefactored(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	alertID := vars["id"]
+
+	// Validate alert ID format
+	if err := validateUUID(alertID); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid alert ID format", err, a.logger)
+		return
+	}
+
+	// Initialize service
+	alertService := a.getAlertService()
+	if alertService == nil {
+		writeError(w, http.StatusInternalServerError, "Alert service not available", nil, a.logger)
+		return
+	}
+
+	// Call service layer (handles enrichment automatically)
+	alert, err := alertService.GetAlertByID(r.Context(), alertID)
+	if err != nil {
+		if errors.Is(err, storage.ErrAlertNotFound) {
+			writeError(w, http.StatusNotFound, "Alert not found", err, a.logger)
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "Failed to retrieve alert", err, a.logger)
+		return
+	}
+
+	a.respondJSON(w, alert, http.StatusOK)
+}
+
+// updateAlertStatusRefactored godoc
+func (a *API) updateAlertStatusRefactored(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	alertID := vars["id"]
+
+	// Validate alert ID
+	if err := validateUUID(alertID); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid alert ID format", err, a.logger)
+		return
+	}
+
+	// Parse request
+	var req struct {
+		Status string `json:"status"`
+		Note   string `json:"note,omitempty"`
+	}
+	if err := a.decodeJSONBody(w, r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid request body", err, a.logger)
+		return
+	}
+
+	// Validate and update status
+	alertStatus := core.AlertStatus(req.Status)
+	if !alertStatus.IsValid() {
+		writeError(w, http.StatusBadRequest, "Invalid alert status", nil, a.logger)
+		return
+	}
+
+	username := getUsernameFromContext(r.Context())
+	if username == "" {
+		username = "anonymous"
+	}
+
+	alertService := a.getAlertService()
+	if alertService == nil {
+		writeError(w, http.StatusInternalServerError, "Alert service not available", nil, a.logger)
+		return
+	}
+
+	// Call service and handle result
+	if err := alertService.UpdateAlertStatus(r.Context(), alertID, alertStatus, username); err != nil {
+		a.handleStatusUpdateError(w, r, alertID, alertStatus, username, err)
+		return
+	}
+
+	a.auditStatusUpdateSuccess(r, alertID, alertStatus, username, req.Note)
+	a.respondJSON(w, map[string]string{"message": "Alert status updated successfully"}, http.StatusOK)
+}
+
+// updateAlertDispositionRefactored godoc
+func (a *API) updateAlertDispositionRefactored(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	alertID := vars["id"]
+
+	// Validate alert ID
+	if err := validateUUID(alertID); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid alert ID format", err, a.logger)
+		return
+	}
+
+	// Parse and validate request
+	req, err := a.parseAndValidateDispositionRequest(w, r)
+	if err != nil {
+		return // Error already written
+	}
+
+	disposition := core.AlertDisposition(req.Disposition)
+	username := getUsernameFromContext(r.Context())
+	if username == "" {
+		username = "anonymous"
+	}
+
+	// Initialize service
+	alertService := a.getAlertService()
+	if alertService == nil {
+		writeError(w, http.StatusInternalServerError, "Alert service not available", nil, a.logger)
+		return
+	}
+
+	// Call service layer
+	previousDisposition, err := alertService.SetDisposition(r.Context(), alertID, disposition, req.Reason, username)
+	if err != nil {
+		a.handleDispositionUpdateError(w, r, alertID, disposition, username, err, previousDisposition)
+		return
+	}
+
+	// AUDIT: Success
+	a.auditDispositionUpdateSuccess(r, alertID, disposition, username, req.Reason, previousDisposition)
+
+	// Build and send response
+	a.sendDispositionUpdateResponse(w, alertID, disposition, req.Reason, username)
+}
+
+// updateAlertAssigneeRefactored godoc
+func (a *API) updateAlertAssigneeRefactored(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	alertID := vars["id"]
+
+	if err := validateUUID(alertID); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid alert ID format", err, a.logger)
+		return
+	}
+
+	var req UpdateAssigneeRequest
+	if err := a.decodeJSONBody(w, r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid request body", err, a.logger)
+		return
+	}
+
+	username := getUsernameFromContext(r.Context())
+	if username == "" {
+		username = "anonymous"
+	}
+
+	// Sanitize assignee
+	sanitizedAssignee, err := sanitizeAssignee(req.AssigneeID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error(), nil, a.logger)
+		return
+	}
+
+	alertService := a.getAlertService()
+	if alertService == nil {
+		writeError(w, http.StatusInternalServerError, "Alert service not available", nil, a.logger)
+		return
+	}
+
+	// Get previous assignee and check idempotency
+	alert, err := alertService.GetAlertByID(r.Context(), alertID)
+	if err != nil {
+		a.handleAssignmentError(w, r, alertID, sanitizedAssignee, username, err, true)
+		return
+	}
+
+	newAssigneeValue := ""
+	if sanitizedAssignee != nil {
+		newAssigneeValue = *sanitizedAssignee
+	}
+
+	if alert.AssignedTo == newAssigneeValue {
+		a.sendIdempotentAssignmentResponse(w, alertID, newAssigneeValue, alert.AssignedTo)
+		return
+	}
+
+	// Update assignment
+	if err := alertService.AssignAlert(r.Context(), alertID, sanitizedAssignee, username); err != nil {
+		a.handleAssignmentError(w, r, alertID, sanitizedAssignee, username, err, false)
+		return
+	}
+
+	a.auditAssignmentSuccess(r, alertID, newAssigneeValue, alert.AssignedTo, username)
+	a.sendAssignmentSuccessResponse(w, alertID, newAssigneeValue, alert.AssignedTo)
+}
+
+// deleteAlertRefactored godoc
+func (a *API) deleteAlertRefactored(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	alertID := vars["id"]
+
+	// Validate alert ID
+	if err := validateUUID(alertID); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid alert ID format", err, a.logger)
+		return
+	}
+
+	// Initialize service
+	alertService := a.getAlertService()
+	if alertService == nil {
+		writeError(w, http.StatusInternalServerError, "Alert service not available", nil, a.logger)
+		return
+	}
+
+	// Call service layer
+	err := alertService.DeleteAlert(r.Context(), alertID)
+	if err != nil {
+		username := r.Header.Get("X-Username")
+		ip := getRealIP(r, a.config.API.TrustProxy, a.config.API.TrustedProxyNetworks)
+		a.logger.Infow("AUDIT: Alert deletion failed",
+			"action", "delete_alert",
+			"outcome", "failure",
+			"username", username,
+			"source_ip", ip,
+			"resource_type", "alert",
+			"resource_id", alertID,
+			"error", err.Error(),
+			"timestamp", time.Now().UTC())
+
+		if errors.Is(err, storage.ErrAlertNotFound) {
+			writeError(w, http.StatusNotFound, "Alert not found", err, a.logger)
+		} else {
+			writeError(w, http.StatusInternalServerError, "Failed to delete alert", err, a.logger)
+		}
+		return
+	}
+
+	// AUDIT: Success
+	username := r.Header.Get("X-Username")
+	ip := getRealIP(r, a.config.API.TrustProxy, a.config.API.TrustedProxyNetworks)
+	a.logger.Infow("AUDIT: Alert deleted successfully",
+		"action", "delete_alert",
+		"outcome", "success",
+		"username", username,
+		"source_ip", ip,
+		"resource_type", "alert",
+		"resource_id", alertID,
+		"timestamp", time.Now().UTC())
+
+	response := map[string]string{"message": "Alert deleted successfully"}
+	a.respondJSON(w, response, http.StatusOK)
+}
+
+// ============================================================================
+// Helper Methods
+// ============================================================================
+
+// getAlertService initializes or retrieves the alert service.
+// Uses lazy initialization pattern to avoid startup dependency issues.
+func (a *API) getAlertService() core.AlertService {
+	// For now, create on-demand. In production, would initialize in NewAPI.
+	if a.alertStorage == nil || a.ruleStorage == nil {
+		return nil
+	}
+
+	// Adapt storage interfaces to service interfaces
+	alertStorageAdapter := &alertStorageAdapter{a.alertStorage}
+	ruleStorageAdapter := &ruleStorageAdapter{a.ruleStorage}
+	userStorageAdapter := &userStorageAdapter{a.userStorage}
+	investigationStorageAdapter := &investigationStorageAdapter{a.investigationStorage}
+
+	return service.NewAlertService(
+		alertStorageAdapter,
+		ruleStorageAdapter,
+		userStorageAdapter,
+		investigationStorageAdapter,
+		a.logger,
+	)
+}
+
+// isPrintableString validates that string contains only printable characters.
+func isPrintableString(s string) bool {
+	for _, r := range s {
+		if r < 32 && r != '\t' && r != '\n' && r != '\r' {
+			return false
+		}
+		if !unicode.IsPrint(r) && !unicode.IsSpace(r) {
+			return false
+		}
+	}
+	return true
+}
+
+// parseAndValidateDispositionRequest extracts disposition validation logic.
+// Returns nil error and writes HTTP error response on validation failure.
+func (a *API) parseAndValidateDispositionRequest(w http.ResponseWriter, r *http.Request) (*UpdateDispositionRequest, error) {
+	// SECURITY: Validate Content-Type
+	contentType := r.Header.Get("Content-Type")
+	if contentType != "" && !strings.Contains(contentType, "application/json") {
+		writeError(w, http.StatusUnsupportedMediaType, "Content-Type must be application/json", nil, a.logger)
+		return nil, fmt.Errorf("invalid content type")
+	}
+
+	// Parse request body
+	var req UpdateDispositionRequest
+	if err := a.decodeJSONBody(w, r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid request body", err, a.logger)
+		return nil, err
+	}
+
+	// Sanitize and validate
+	if err := validateAndSanitizeDispositionRequest(&req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error(), nil, a.logger)
+		return nil, err
+	}
+
+	return &req, nil
+}
+
+// validateAndSanitizeDispositionRequest performs security validation on disposition request.
+func validateAndSanitizeDispositionRequest(req *UpdateDispositionRequest) error {
+	const maxReasonLength = 1000
+
+	// Sanitize inputs
+	req.Disposition = strings.TrimSpace(req.Disposition)
+	req.Reason = strings.TrimSpace(req.Reason)
+
+	// Validate disposition
+	if req.Disposition == "" {
+		return fmt.Errorf("disposition cannot be empty. Valid values: %v", core.ValidDispositions())
+	}
+
+	disposition := core.AlertDisposition(req.Disposition)
+	if !disposition.IsValid() {
+		return fmt.Errorf("invalid disposition value: %q. Valid values: %v", req.Disposition, core.ValidDispositions())
+	}
+
+	// Validate reason length
+	if len(req.Reason) > maxReasonLength {
+		return fmt.Errorf("reason exceeds maximum length of %d characters", maxReasonLength)
+	}
+
+	// Validate printable characters
+	if !isPrintableString(req.Reason) {
+		return fmt.Errorf("reason contains invalid characters")
+	}
+
+	// XSS sanitization
+	req.Reason = html.EscapeString(req.Reason)
+
+	return nil
+}
+
+// handleStatusUpdateError handles status update errors with proper status codes and audit.
+func (a *API) handleStatusUpdateError(
+	w http.ResponseWriter,
+	r *http.Request,
+	alertID string,
+	status core.AlertStatus,
+	username string,
+	err error,
+) {
+	a.auditStatusUpdateFailure(r, alertID, status, username, err)
+
+	if errors.Is(err, storage.ErrAlertNotFound) {
+		writeError(w, http.StatusNotFound, "Alert not found", err, a.logger)
+	} else {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("Invalid state transition: %v", err), err, a.logger)
+	}
+}
+
+// handleDispositionUpdateError handles disposition update errors with proper status codes.
+func (a *API) handleDispositionUpdateError(
+	w http.ResponseWriter,
+	r *http.Request,
+	alertID string,
+	disposition core.AlertDisposition,
+	username string,
+	err error,
+	previousDisposition core.AlertDisposition,
+) {
+	a.auditDispositionUpdateFailure(r, alertID, disposition, username, err, previousDisposition)
+
+	if errors.Is(err, storage.ErrAlertNotFound) {
+		writeError(w, http.StatusNotFound, "Alert not found", nil, a.logger)
+	} else {
+		writeError(w, http.StatusInternalServerError, "Failed to update alert disposition", nil, a.logger)
+	}
+}
+
+// sendDispositionUpdateResponse builds and sends successful disposition update response.
+func (a *API) sendDispositionUpdateResponse(
+	w http.ResponseWriter,
+	alertID string,
+	disposition core.AlertDisposition,
+	reason, username string,
+) {
+	now := time.Now().UTC()
+	response := UpdateDispositionResponse{
+		ID:                alertID,
+		Disposition:       string(disposition),
+		DispositionReason: reason,
+		DispositionSetAt:  &now,
+		DispositionSetBy:  username,
+		Message:           "Alert disposition updated successfully",
+	}
+	a.respondJSON(w, response, http.StatusOK)
+}
+
+// ============================================================================
+// Audit Helper Methods (extracted for clarity)
+// ============================================================================
+
+func (a *API) auditStatusUpdateFailure(r *http.Request, alertID string, status core.AlertStatus, username string, err error) {
+	ip := getRealIP(r, a.config.API.TrustProxy, a.config.API.TrustedProxyNetworks)
+	a.logger.Infow("AUDIT: Alert status update failed",
+		"action", "update_alert_status",
+		"outcome", "failure",
+		"username", username,
+		"source_ip", ip,
+		"resource_type", "alert",
+		"resource_id", alertID,
+		"new_status", string(status),
+		"error", err.Error(),
+		"timestamp", time.Now().UTC())
+}
+
+func (a *API) auditStatusUpdateSuccess(r *http.Request, alertID string, status core.AlertStatus, username, note string) {
+	ip := getRealIP(r, a.config.API.TrustProxy, a.config.API.TrustedProxyNetworks)
+	a.logger.Infow("AUDIT: Alert status updated successfully",
+		"action", "update_alert_status",
+		"outcome", "success",
+		"username", username,
+		"source_ip", ip,
+		"resource_type", "alert",
+		"resource_id", alertID,
+		"new_status", string(status),
+		"note", note,
+		"timestamp", time.Now().UTC())
+}
+
+func (a *API) auditDispositionUpdateFailure(r *http.Request, alertID string, disposition core.AlertDisposition, username string, err error, previousDisposition core.AlertDisposition) {
+	ip := getRealIP(r, a.config.API.TrustProxy, a.config.API.TrustedProxyNetworks)
+
+	if errors.Is(err, storage.ErrAlertNotFound) {
+		a.logger.Infow("AUDIT: Alert disposition update failed - alert not found",
+			"action", "update_alert_disposition",
+			"outcome", "failure",
+			"username", username,
+			"source_ip", ip,
+			"resource_type", "alert",
+			"resource_id", alertID,
+			"disposition", string(disposition),
+			"error", "alert_not_found",
+			"timestamp", time.Now().UTC())
+	} else {
+		a.logger.Infow("AUDIT: Alert disposition update failed",
+			"action", "update_alert_disposition",
+			"outcome", "failure",
+			"username", username,
+			"source_ip", ip,
+			"resource_type", "alert",
+			"resource_id", alertID,
+			"disposition", string(disposition),
+			"previous_disposition", string(previousDisposition),
+			"error", err.Error(),
+			"timestamp", time.Now().UTC())
+	}
+}
+
+func (a *API) auditDispositionUpdateSuccess(r *http.Request, alertID string, disposition core.AlertDisposition, username, reason string, previousDisposition core.AlertDisposition) {
+	ip := getRealIP(r, a.config.API.TrustProxy, a.config.API.TrustedProxyNetworks)
+	a.logger.Infow("AUDIT: Alert disposition updated successfully",
+		"action", "update_alert_disposition",
+		"outcome", "success",
+		"username", username,
+		"source_ip", ip,
+		"resource_type", "alert",
+		"resource_id", alertID,
+		"disposition", string(disposition),
+		"previous_disposition", string(previousDisposition),
+		"reason", reason,
+		"timestamp", time.Now().UTC())
+}
+
+func (a *API) auditAssignmentFailure(r *http.Request, alertID string, assignee *string, username string, err error) {
+	ip := getRealIP(r, a.config.API.TrustProxy, a.config.API.TrustedProxyNetworks)
+	newAssignee := ""
+	if assignee != nil {
+		newAssignee = *assignee
+	}
+	a.logger.Infow("AUDIT: Alert assignee update failed",
+		"action", "update_alert_assignee",
+		"outcome", "failure",
+		"username", username,
+		"source_ip", ip,
+		"resource_type", "alert",
+		"resource_id", alertID,
+		"new_assignee", newAssignee,
+		"error", err.Error(),
+		"timestamp", time.Now().UTC())
+}
+
+func (a *API) auditAssignmentSuccess(r *http.Request, alertID, newAssignee, previousAssignee, username string) {
+	ip := getRealIP(r, a.config.API.TrustProxy, a.config.API.TrustedProxyNetworks)
+	a.logger.Infow("AUDIT: Alert assignee updated successfully",
+		"action", "update_alert_assignee",
+		"outcome", "success",
+		"username", username,
+		"source_ip", ip,
+		"resource_type", "alert",
+		"resource_id", alertID,
+		"previous_assignee", previousAssignee,
+		"new_assignee", newAssignee,
+		"timestamp", time.Now().UTC())
+}

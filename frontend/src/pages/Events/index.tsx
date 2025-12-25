@@ -16,6 +16,55 @@ import {
 } from '@mui/material';
 import { apiService } from '../../services/api';
 import { Event } from '../../types';
+import { escapeHTML } from '../../utils/sanitize';
+import { useSanitizedJSON } from '../../hooks/useSanitizedContent';
+
+/**
+ * EventRow component with XSS protection via sanitization hooks.
+ * SECURITY: All user-generated content is sanitized before rendering.
+ */
+function EventRow({ event }: { event: Event }) {
+  // Sanitize event fields to prevent XSS attacks
+  const sanitizedFields = useSanitizedJSON(event.fields);
+  const sanitizedEventType = escapeHTML(event.event_type);
+  const sanitizedSourceIP = escapeHTML(event.source_ip);
+
+  return (
+    <TableRow>
+      <TableCell>
+        {new Date(event.timestamp).toLocaleString()}
+      </TableCell>
+      <TableCell>{sanitizedEventType}</TableCell>
+      <TableCell>
+        <Chip
+          label={event.severity}
+          color={
+            event.severity === 'critical' ? 'error' :
+            event.severity === 'high' ? 'error' :
+            event.severity === 'medium' ? 'warning' :
+            event.severity === 'low' ? 'info' : 'default'
+          }
+          size="small"
+        />
+      </TableCell>
+      <TableCell>{sanitizedSourceIP}</TableCell>
+      <TableCell>
+        <Box
+          component="pre"
+          sx={{
+            maxWidth: 300,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            fontSize: '0.75rem',
+          }}
+        >
+          {sanitizedFields}
+        </Box>
+      </TableCell>
+    </TableRow>
+  );
+}
 
 function Events() {
   const [newEvents, setNewEvents] = useState<Event[]>([]);
@@ -85,41 +134,7 @@ function Events() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {events?.map((event) => (
-              <TableRow key={event.event_id}>
-                <TableCell>
-                  {new Date(event.timestamp).toLocaleString()}
-                </TableCell>
-                <TableCell>{event.event_type}</TableCell>
-                <TableCell>
-                  <Chip
-                    label={event.severity}
-                    color={
-                      event.severity === 'critical' ? 'error' :
-                      event.severity === 'high' ? 'error' :
-                      event.severity === 'medium' ? 'warning' :
-                      event.severity === 'low' ? 'info' : 'default'
-                    }
-                    size="small"
-                  />
-                </TableCell>
-                <TableCell>{event.source_ip}</TableCell>
-                <TableCell>
-                  <Box
-                    component="pre"
-                    sx={{
-                      maxWidth: 300,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      fontSize: '0.75rem',
-                    }}
-                  >
-                    {JSON.stringify(event.fields)}
-                  </Box>
-                </TableCell>
-              </TableRow>
-            ))}
+            {events?.map((event) => <EventRow key={event.event_id} event={event} />)}
           </TableBody>
         </Table>
       </TableContainer>

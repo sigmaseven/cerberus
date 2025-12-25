@@ -23,7 +23,7 @@ import type { Action } from '../../types';
 const actionFormSchema = z.object({
   name: z.string().min(1, 'Action name is required'),
   type: z.enum(['webhook', 'jira', 'slack', 'email']),
-  config: z.record(z.any()),
+  config: z.record(z.unknown()),
 });
 
 type ActionFormData = z.infer<typeof actionFormSchema>;
@@ -75,7 +75,7 @@ export function ActionForm({ open, onClose, onSubmit, initialData, title }: Acti
     resolver: zodResolver(actionFormSchema),
     defaultValues: {
       name: initialData?.id || '',
-      type: (initialData?.type as any) || 'webhook',
+      type: (initialData?.type as 'webhook' | 'jira' | 'slack' | 'email') || 'webhook',
       config: initialData?.config || actionTemplates.webhook,
     },
   });
@@ -90,7 +90,7 @@ export function ActionForm({ open, onClose, onSubmit, initialData, title }: Acti
 
   const handleTypeChange = (newType: string) => {
     setSelectedType(newType);
-    setValue('type', newType as any);
+    setValue('type', newType as 'webhook' | 'jira' | 'slack' | 'email');
     setValue('config', actionTemplates[newType as keyof typeof actionTemplates]);
   };
 

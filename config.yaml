@@ -1,7 +1,10 @@
-mongodb:
-  enabled: true
-  uri: "mongodb://localhost:27017"
+clickhouse:
+  addr: "127.0.0.1:9000"
   database: "cerberus"
+  username: "default"
+  password: "testpass123"
+  max_pool_size: 10
+  tls: false
 
 listeners:
   syslog:
@@ -11,14 +14,32 @@ listeners:
     port: 515
     host: "0.0.0.0"
   json:
-    port: 8080
+    port: 8081
     host: "0.0.0.0"
     tls: false
 
 api:
   version: "v1"
-  port: 8081
+  port: 8080
   tls: false
+  allowed_origins:
+    - "http://localhost:3000"
+    - "http://localhost:5173"
+    - "http://localhost:8080"
+    - "http://127.0.0.1:3000"
+    - "http://127.0.0.1:5173"
+    - "http://127.0.0.1:8080"
+
+auth:
+  enabled: false
+  username: admin
+  password: admin1234
+  jwt_secret: "17a99902234a23cc40af45352b0297ec7212ba7ef9c6811210a2053adebfdcec"
+  jwt_expiry: 24h
+  bcrypt_cost: 10
+  # TASK 39: Account lockout configuration
+  lockout_threshold: 5      # Number of failed login attempts before lockout (default: 5)
+  lockout_duration: 15m     # Account lockout duration (default: 15 minutes)
 
 rules:
   file: "rules.json"
@@ -29,3 +50,85 @@ correlation_rules:
 retention:
   events: 30
   alerts: 90
+
+# SIGMA Feeds Configuration
+feeds:
+  enabled: true
+  working_dir: "./data/feeds"
+  sync_on_startup: true
+  scheduler_enabled: true
+  default_feed:
+    enabled: true
+    name: "SigmaHQ Core"
+    url: "https://github.com/SigmaHQ/sigma.git"
+    branch: "master"
+    path: "rules"
+    min_severity: "low"
+
+ml:
+  enabled: true
+  mode: "simple"
+  model_path: "./data/ml_models"
+  training_data_dir: "./data/ml_training"
+  batch_size: 100
+  threshold: 0.7
+  update_interval: 60
+  feature_cache_size: 10000
+  algorithms:
+    - "zscore"
+    - "iqr"
+    - "isolation_forest"
+  training_interval: 24
+  retrain_threshold: 1000
+  enable_drift_detection: true
+  anomaly_threshold: 0.7
+  min_training_samples: 100
+# ReDoS Protection Configuration (Task #2)
+# SECURITY: Prevents Regular Expression Denial of Service attacks
+engine:
+  regex_timeout_ms: 500              # Timeout for regex evaluation (milliseconds)
+  regex_max_length: 1000             # Maximum regex pattern length
+  regex_enable_complexity_check: true # Enable complexity validation
+  # TASK 131: Native SIGMA Detection Engine Configuration
+  # Enables native SIGMA YAML rule evaluation alongside traditional JSON rules
+  enable_native_sigma_engine: false   # Feature flag to enable SIGMA engine (default: false)
+  sigma_field_mapping_config: config/sigma_field_mappings.yaml  # Path to field mapping YAML
+  sigma_engine_cache_size: 1000       # Maximum SIGMA rules to cache (default: 1000, ≈5-10MB)
+  sigma_engine_cache_ttl: 30m         # Cache entry TTL (default: 30 minutes)
+  sigma_engine_cleanup_interval: 5m   # Background cleanup interval (default: 5 minutes)
+
+  # TASK 131.5: SIGMA Engine Gradual Rollout Configuration
+  # Controls canary deployment of native SIGMA engine for safe production rollout
+  # PRODUCTION ROLLOUT STRATEGY:
+  #   1. Start: rollout_percentage=0 (validate health metrics with engine enabled)
+  #   2. Canary: rollout_percentage=5 (monitor 5% of rules for errors/performance)
+  #   3. Expand: rollout_percentage=25 (confidence building phase)
+  #   4. Majority: rollout_percentage=75 (prepare for full migration)
+  #   5. Complete: rollout_percentage=100 (all rules use native engine)
+  sigma_rollout_percentage: 0         # Percentage of rules using native engine (0-100, default: 0)
+  sigma_rollout_enabled_rules: []     # Explicit whitelist (e.g., ["critical-rule-001", "high-priority-002"])
+  sigma_rollout_disabled_rules: []    # Explicit blocklist (e.g., ["broken-rule-003", "slow-rule-004"])
+
+# SSRF Protection Configuration (Task #1)
+# SECURITY: Prevents Server-Side Request Forgery attacks in webhook actions
+security:
+  # TASK 32.3: Regex timeout for ReDoS protection (default: 100ms, min: 10ms, max: 5000ms)
+  regex_timeout: 100ms
+  # TASK 38.1: Password policy configuration
+  password_policy:
+    min_length: 12              # Minimum password length (default: 12)
+    require_classes: 3          # Require 3 of 4 character classes (uppercase, lowercase, digits, special)
+    max_history: 5              # Keep last 5 passwords in history (prevent reuse)
+    expiration_days: 90         # Password expires after 90 days (0 = disabled)
+    warning_days: 14            # Send warning 14 days before expiration
+    common_password_file: data/common-passwords.txt  # Path to common passwords list
+  webhooks:
+    allow_localhost: false           # Allow localhost webhooks (default: false)
+    allow_private_ips: false         # Allow private IP webhooks (default: false)
+    allowlist: []                    # Allowed domains/IPs/CIDRs (empty = no allowlist)
+                                     # Examples:
+                                     #   - "example.com"
+                                     #   - "api.example.com"
+                                     #   - "203.0.113.0/24"
+                                     #   - "2001:db8::/32"
+    timeout: 10                      # Webhook timeout in seconds (default: 10, max: 60)

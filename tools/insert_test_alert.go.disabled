@@ -1,0 +1,84 @@
+package main
+
+import (
+	"log"
+	"time"
+
+	"cerberus/config"
+	"cerberus/core"
+	"cerberus/storage"
+
+	"go.uber.org/zap"
+)
+
+func main() {
+	// Load config
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+
+	// Create logger
+	logger, _ := zap.NewDevelopment()
+	defer logger.Sync()
+	sugar := logger.Sugar()
+
+	// Connect to ClickHouse
+	clickhouse, err := storage.NewClickHouse(cfg, sugar)
+	if err != nil {
+		log.Fatalf("Failed to connect to ClickHouse: %v", err)
+	}
+	defer clickhouse.Close()
+
+	// Create alert channel (not used for this one-off insert)
+	alertCh := make(chan *core.Alert, 1)
+	defer close(alertCh)
+
+	alertStorage, err := storage.NewClickHouseAlertStorage(clickhouse, cfg, alertCh, sugar)
+	if err != nil {
+		log.Fatalf("Failed to create alert storage: %v", err)
+	}
+
+	// Create the event that will be embedded in the alert
+	event := &core.Event{
+		EventID:      "test-psexec-001",
+		Timestamp:    time.Date(2025, 11, 12, 2, 27, 32, 0, time.UTC),
+		IngestedAt:   time.Date(2025, 11, 12, 2, 27, 32, 0, time.UTC),
+		ListenerID:   "d2dfd0a3-5030-4eb0-a0ce-99d344201ae5",
+		ListenerName: "test-tcp-listener",
+		Source:       "manual-test",
+		SourceFormat: "json",
+		RawData:      `{"EventID": 17, "EventType": "pipe_created", "Computer": "TEST-WORKSTATION", "PipeName": "\\PSEXESVC", "User": "NT AUTHORITY\\SYSTEM"}`,
+		Fields: map[string]interface{}{
+			"EventID":    17,
+			"EventType":  "pipe_created",
+			"Computer":   "TEST-WORKSTATION",
+			"PipeName":   "\\PSEXESVC",
+			"User":       "NT AUTHORITY\\SYSTEM",
+			"source_ip":  "127.0.0.1:5140",
+		},
+	}
+
+	// Create the alert
+	alert := &core.Alert{
+		AlertID:        "alert-psexec-003",
+		RuleID:         "f3f3a972-f982-40ad-b63c-bca6afdfad7c",
+		EventID:        "test-psexec-001",
+		Timestamp:      time.Date(2025, 11, 12, 2, 30, 6, 0, time.UTC),
+		Severity:       "low",
+		Status:         core.AlertStatusNew,
+		Fingerprint:    "psexec-pipe-detected",
+		DuplicateCount: 1,
+		LastSeen:       time.Date(2025, 11, 12, 2, 30, 6, 0, time.UTC),
+		EventIDs:       []string{"test-psexec-001"},
+		Event:          event, // This is the key - embed the full event
+	}
+
+	// Store the alert (this will properly marshal the event)
+	if err := alertStorage.InsertAlert(alert); err != nil {
+		log.Fatalf("Failed to store alert: %v", err)
+	}
+
+	log.Printf("✓ Alert created successfully with ID: %s", alert.AlertID)
+	log.Printf("✓ Event data properly serialized and stored")
+}

@@ -1,0 +1,344 @@
+package parser
+
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+)
+
+// Test represents a single test function
+type Test struct {
+	Name        string
+	Package     string
+	File        string
+	Line        int
+	Description string
+	Covers      []string
+	Keywords    []string
+	Disabled    bool
+}
+
+// TestsParser parses Go test files and extracts test information.
+type TestsParser struct {
+	coveragePatterns []*regexp.Regexp
+	reqIDPatterns    []*regexp.Regexp
+}
+
+// NewTestsParser creates a new test parser.
+func NewTestsParser(coverageCommentPatterns []string, reqIDPatterns []string) (*TestsParser, error) {
+	// Compile coverage comment patterns
+	coverageRegexes := make([]*regexp.Regexp, 0, len(coverageCommentPatterns))
+	for _, pattern := range coverageCommentPatterns {
+		// Convert simple patterns to regex
+		// "// Covers: " -> compile as literal prefix
+		re, err := regexp.Compile(regexp.QuoteMeta(pattern))
+		if err != nil {
+			return nil, fmt.Errorf("invalid coverage pattern %q: %w", pattern, err)
+		}
+		coverageRegexes = append(coverageRegexes, re)
+	}
+
+	// Compile requirement ID patterns with boundaries to prevent substring matches
+	reqIDRegexes := make([]*regexp.Regexp, 0, len(reqIDPatterns))
+	for _, pattern := range reqIDPatterns {
+		// Add negative lookbehind to prevent "FR-PERF-001" matching inside "NFR-PERF-001"
+		// Use (?:^|[^A-Z-]) to ensure pattern starts at word boundary or after non-letter
+		// Wrap in capturing group to extract just the ID
+		boundedPattern := `(?:^|[^A-Z-])(` + pattern + `)\b`
+		re, err := regexp.Compile(boundedPattern)
+		if err != nil {
+			return nil, fmt.Errorf("invalid requirement ID pattern %q: %w", pattern, err)
+		}
+		reqIDRegexes = append(reqIDRegexes, re)
+	}
+
+	return &TestsParser{
+		coveragePatterns: coverageRegexes,
+		reqIDPatterns:    reqIDRegexes,
+	}, nil
+}
+
+// ParseDirectories recursively parses all test files in the given directories.
+func (p *TestsParser) ParseDirectories(dirs []string, patterns []string) ([]Test, error) {
+	var allTests []Test
+
+	for _, dir := range dirs {
+		tests, err := p.parseDirectory(dir, patterns)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse directory %s: %w", dir, err)
+		}
+		allTests = append(allTests, tests...)
+	}
+
+	return allTests, nil
+}
+
+// parseDirectory recursively parses test files in a directory.
+func (p *TestsParser) parseDirectory(dir string, patterns []string) ([]Test, error) {
+	var tests []Test
+
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip directories and non-Go files
+		if info.IsDir() {
+			// Skip vendor, node_modules, .git directories
+			if info.Name() == "vendor" || info.Name() == "node_modules" || info.Name() == ".git" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		// Check if file matches any pattern
+		matched := false
+		for _, pattern := range patterns {
+			// Handle glob patterns
+			match, err := filepath.Match(pattern, filepath.Base(path))
+			if err != nil {
+				return fmt.Errorf("invalid pattern %q: %w", pattern, err)
+			}
+			if match {
+				matched = true
+				break
+			}
+		}
+
+		if !matched {
+			return nil
+		}
+
+		// Parse the test file
+		fileTests, err := p.ParseFile(path)
+		if err != nil {
+			// Log warning but continue
+			fmt.Fprintf(os.Stderr, "Warning: failed to parse %s: %v\n", path, err)
+			return nil
+		}
+
+		tests = append(tests, fileTests...)
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to walk test directory: %w", err)
+	}
+
+	return tests, nil
+}
+
+// ParseFile parses a single test file.
+func (p *TestsParser) ParseFile(filePath string) ([]Test, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	var tests []Test
+	var currentTest *Test
+	var commentLines []string
+
+	scanner := bufio.NewScanner(file)
+	lineNum := 0
+
+	// Determine if file is disabled
+	disabled := strings.HasSuffix(filePath, ".disabled")
+
+	// Extract package name and relative path
+	packageName := extractPackageFromPath(filePath)
+
+	for scanner.Scan() {
+		lineNum++
+		line := scanner.Text()
+		trimmed := strings.TrimSpace(line)
+
+		// Collect comment lines
+		if strings.HasPrefix(trimmed, "//") {
+			commentLines = append(commentLines, trimmed)
+			continue
+		}
+
+		// Look for test function declarations
+		if strings.HasPrefix(trimmed, "func Test") || strings.HasPrefix(trimmed, "func Benchmark") {
+			// Extract test name
+			testName := extractTestName(trimmed)
+			if testName == "" {
+				continue
+			}
+
+			// Create test entry
+			currentTest = &Test{
+				Name:     testName,
+				Package:  packageName,
+				File:     filePath,
+				Line:     lineNum,
+				Disabled: disabled,
+			}
+
+			// Process collected comments
+			description, covers := p.processComments(commentLines)
+			currentTest.Description = description
+			currentTest.Covers = covers
+
+			// Extract keywords from test name
+			currentTest.Keywords = extractTestKeywords(testName)
+
+			tests = append(tests, *currentTest)
+			currentTest = nil
+		}
+
+		// Clear comment buffer if we hit a non-comment, non-test line
+		if !strings.HasPrefix(trimmed, "//") && !strings.HasPrefix(trimmed, "func") {
+			commentLines = []string{}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading file: %w", err)
+	}
+
+	return tests, nil
+}
+
+// processComments extracts description and covered requirements from comment lines.
+func (p *TestsParser) processComments(comments []string) (string, []string) {
+	var descLines []string
+	var covers []string
+
+	for _, comment := range comments {
+		// Remove comment prefix
+		text := strings.TrimPrefix(comment, "//")
+		text = strings.TrimSpace(text)
+
+		// Check for coverage indicators
+		coverFound := false
+		for _, pattern := range p.coveragePatterns {
+			if pattern.MatchString(comment) {
+				// Extract requirement IDs from this line
+				reqIDs := p.extractRequirementIDs(text)
+				covers = append(covers, reqIDs...)
+				coverFound = true
+				break
+			}
+		}
+
+		// Also check for "REQUIREMENT:" prefix (common pattern in the codebase)
+		if strings.HasPrefix(strings.ToUpper(text), "REQUIREMENT:") {
+			reqIDs := p.extractRequirementIDs(text)
+			covers = append(covers, reqIDs...)
+			coverFound = true
+		}
+
+		// If not a coverage comment, treat as description
+		if !coverFound && text != "" {
+			descLines = append(descLines, text)
+		}
+	}
+
+	return strings.Join(descLines, " "), deduplicateStrings(covers)
+}
+
+// extractRequirementIDs extracts all requirement IDs from a text string.
+func (p *TestsParser) extractRequirementIDs(text string) []string {
+	var ids []string
+
+	for _, pattern := range p.reqIDPatterns {
+		// Use FindAllStringSubmatch to get capture groups
+		matches := pattern.FindAllStringSubmatch(text, -1)
+		for _, match := range matches {
+			if len(match) > 1 {
+				// Append capture group 1 (the actual ID), not the full match
+				ids = append(ids, match[1])
+			}
+		}
+	}
+
+	return ids
+}
+
+// extractTestName extracts the test function name from a function declaration.
+func extractTestName(line string) string {
+	// Match: func TestXxx(t *testing.T) or func BenchmarkXxx(b *testing.B)
+	re := regexp.MustCompile(`func\s+(Test\w+|Benchmark\w+)\s*\(`)
+	matches := re.FindStringSubmatch(line)
+	if len(matches) > 1 {
+		return matches[1]
+	}
+	return ""
+}
+
+// extractTestKeywords extracts keywords from a test name.
+// Example: TestAPI_SQLInjection_OWASPVectors -> ["api", "sql", "injection", "owasp", "vectors"]
+func extractTestKeywords(testName string) []string {
+	// Remove Test/Benchmark prefix
+	name := strings.TrimPrefix(testName, "Test")
+	name = strings.TrimPrefix(name, "Benchmark")
+
+	// Split on underscores and capital letters
+	var keywords []string
+
+	// First, split on underscores
+	parts := strings.Split(name, "_")
+
+	for _, part := range parts {
+		// Split camelCase words
+		words := splitCamelCase(part)
+		for _, word := range words {
+			word = strings.ToLower(word)
+			if len(word) >= 2 { // Keep words of at least 2 characters
+				keywords = append(keywords, word)
+			}
+		}
+	}
+
+	return keywords
+}
+
+// splitCamelCase splits a camelCase string into words.
+func splitCamelCase(s string) []string {
+	var words []string
+	var currentWord strings.Builder
+
+	for i, r := range s {
+		if i > 0 && r >= 'A' && r <= 'Z' {
+			// Capital letter, start new word
+			if currentWord.Len() > 0 {
+				words = append(words, currentWord.String())
+				currentWord.Reset()
+			}
+		}
+		currentWord.WriteRune(r)
+	}
+
+	if currentWord.Len() > 0 {
+		words = append(words, currentWord.String())
+	}
+
+	return words
+}
+
+// extractPackageFromPath extracts package name from file path.
+func extractPackageFromPath(filePath string) string {
+	dir := filepath.Dir(filePath)
+	return filepath.Base(dir)
+}
+
+// deduplicateStrings removes duplicate strings from a slice.
+func deduplicateStrings(input []string) []string {
+	seen := make(map[string]bool)
+	result := make([]string, 0, len(input))
+
+	for _, item := range input {
+		if !seen[item] {
+			seen[item] = true
+			result = append(result, item)
+		}
+	}
+
+	return result
+}

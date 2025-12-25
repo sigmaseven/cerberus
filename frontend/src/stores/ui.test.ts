@@ -7,8 +7,7 @@ describe('UiStore', () => {
     useUiStore.setState({
       sidebarOpen: true,
       theme: 'dark',
-      loading: false,
-    });
+      loading: false});
   });
 
   describe('initial state', () => {

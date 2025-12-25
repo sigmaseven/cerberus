@@ -1,0 +1,290 @@
+{
+  "playbooks": [
+    {
+      "id": "pb-critical-alert-response",
+      "name": "Critical Alert Response",
+      "description": "Automated response for critical severity alerts",
+      "enabled": true,
+      "priority": 100,
+      "tags": ["critical", "automated", "response"],
+      "triggers": [
+        {
+          "type": "severity",
+          "conditions": [
+            {
+              "field": "severity",
+              "operator": "eq",
+              "value": "critical"
+            }
+          ]
+        }
+      ],
+      "steps": [
+        {
+          "id": "step-1",
+          "name": "Send High Priority Notification",
+          "action_type": "send_notification",
+          "parameters": {
+            "channel": "slack",
+            "message": "🚨 CRITICAL ALERT DETECTED - Immediate Action Required"
+          },
+          "continue_on_error": true,
+          "timeout": "30s"
+        },
+        {
+          "id": "step-2",
+          "name": "Block Source IP",
+          "action_type": "block_ip",
+          "parameters": {
+            "duration": "24h"
+          },
+          "continue_on_error": true,
+          "timeout": "1m"
+        },
+        {
+          "id": "step-3",
+          "name": "Create Security Incident Ticket",
+          "action_type": "create_ticket",
+          "parameters": {
+            "title": "Critical Security Alert - Immediate Investigation Required",
+            "description": "Automated ticket created for critical security alert. Review and respond immediately.",
+            "priority": "critical",
+            "assignee": "security-team"
+          },
+          "continue_on_error": false,
+          "timeout": "1m"
+        },
+        {
+          "id": "step-4",
+          "name": "Update Alert Status",
+          "action_type": "update_alert",
+          "parameters": {
+            "status": "investigating",
+            "notes": "Automated response initiated: IP blocked, ticket created"
+          },
+          "continue_on_error": false,
+          "timeout": "30s"
+        }
+      ]
+    },
+    {
+      "id": "pb-bruteforce-response",
+      "name": "Brute Force Attack Response",
+      "description": "Automated response for SSH/RDP brute force attacks",
+      "enabled": true,
+      "priority": 80,
+      "tags": ["bruteforce", "automated", "blocking"],
+      "triggers": [
+        {
+          "type": "rule_id",
+          "conditions": [
+            {
+              "field": "rule_id",
+              "operator": "contains",
+              "value": "bruteforce"
+            }
+          ]
+        }
+      ],
+      "steps": [
+        {
+          "id": "step-1",
+          "name": "Block Attacker IP",
+          "action_type": "block_ip",
+          "parameters": {
+            "duration": "48h"
+          },
+          "continue_on_error": false,
+          "timeout": "1m"
+        },
+        {
+          "id": "step-2",
+          "name": "Notify Security Team",
+          "action_type": "send_notification",
+          "parameters": {
+            "channel": "email",
+            "message": "Brute force attack detected and blocked automatically"
+          },
+          "continue_on_error": true,
+          "timeout": "30s"
+        },
+        {
+          "id": "step-3",
+          "name": "Update Alert",
+          "action_type": "update_alert",
+          "parameters": {
+            "status": "resolved",
+            "notes": "Attacker IP automatically blocked for 48 hours"
+          },
+          "continue_on_error": false,
+          "timeout": "30s"
+        }
+      ]
+    },
+    {
+      "id": "pb-malware-detection",
+      "name": "Malware Detection Response",
+      "description": "Isolate hosts with detected malware",
+      "enabled": true,
+      "priority": 90,
+      "tags": ["malware", "isolation", "automated"],
+      "triggers": [
+        {
+          "type": "rule_id",
+          "conditions": [
+            {
+              "field": "rule_id",
+              "operator": "contains",
+              "value": "malware"
+            }
+          ]
+        }
+      ],
+      "steps": [
+        {
+          "id": "step-1",
+          "name": "Isolate Infected Host",
+          "action_type": "isolate_host",
+          "parameters": {
+            "hostname": "{{event.hostname}}"
+          },
+          "continue_on_error": false,
+          "timeout": "2m",
+          "conditions": [
+            {
+              "field": "event.hostname",
+              "operator": "ne",
+              "value": null
+            }
+          ]
+        },
+        {
+          "id": "step-2",
+          "name": "Send Critical Alert",
+          "action_type": "send_notification",
+          "parameters": {
+            "channel": "slack",
+            "message": "🦠 MALWARE DETECTED - Host has been isolated from network"
+          },
+          "continue_on_error": true,
+          "timeout": "30s"
+        },
+        {
+          "id": "step-3",
+          "name": "Create Incident Ticket",
+          "action_type": "create_ticket",
+          "parameters": {
+            "title": "Malware Detected - Host Isolated",
+            "description": "Malware detected on host. System has been automatically isolated. Begin forensic investigation.",
+            "priority": "high",
+            "assignee": "incident-response-team"
+          },
+          "continue_on_error": true,
+          "timeout": "1m"
+        },
+        {
+          "id": "step-4",
+          "name": "Update Alert Status",
+          "action_type": "update_alert",
+          "parameters": {
+            "status": "investigating",
+            "severity": "critical",
+            "notes": "Host isolated automatically. Awaiting forensic investigation."
+          },
+          "continue_on_error": false,
+          "timeout": "30s"
+        }
+      ]
+    },
+    {
+      "id": "pb-high-severity-enrichment",
+      "name": "High Severity Alert Enrichment",
+      "description": "Enrich high severity alerts with threat intelligence and notify team",
+      "enabled": true,
+      "priority": 70,
+      "tags": ["enrichment", "high-severity", "notification"],
+      "triggers": [
+        {
+          "type": "severity",
+          "conditions": [
+            {
+              "field": "severity",
+              "operator": "in",
+              "value": ["high", "critical"]
+            }
+          ]
+        }
+      ],
+      "steps": [
+        {
+          "id": "step-1",
+          "name": "Enrich with Threat Intel",
+          "action_type": "enrich_ioc",
+          "parameters": {
+            "sources": ["virustotal", "abuseipdb"]
+          },
+          "continue_on_error": true,
+          "timeout": "1m"
+        },
+        {
+          "id": "step-2",
+          "name": "Notify Security Team",
+          "action_type": "send_notification",
+          "parameters": {
+            "channel": "slack",
+            "message": "High severity alert detected and enriched with threat intelligence"
+          },
+          "continue_on_error": true,
+          "timeout": "30s"
+        },
+        {
+          "id": "step-3",
+          "name": "Update Alert with Enrichment Status",
+          "action_type": "update_alert",
+          "parameters": {
+            "notes": "Alert enriched with threat intelligence data"
+          },
+          "continue_on_error": false,
+          "timeout": "30s"
+        }
+      ]
+    },
+    {
+      "id": "pb-webhook-integration",
+      "name": "External SIEM Integration",
+      "description": "Forward high priority alerts to external SIEM/SOAR platform",
+      "enabled": false,
+      "priority": 60,
+      "tags": ["integration", "webhook", "forwarding"],
+      "triggers": [
+        {
+          "type": "severity",
+          "conditions": [
+            {
+              "field": "severity",
+              "operator": "in",
+              "value": ["high", "critical"]
+            }
+          ]
+        }
+      ],
+      "steps": [
+        {
+          "id": "step-1",
+          "name": "Forward to External Platform",
+          "action_type": "call_webhook",
+          "parameters": {
+            "url": "https://your-siem.example.com/api/alerts",
+            "method": "POST",
+            "headers": {
+              "Authorization": "Bearer YOUR_API_TOKEN",
+              "Content-Type": "application/json"
+            }
+          },
+          "continue_on_error": true,
+          "timeout": "1m"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+name: "Windows Account Compromise"
+description: "Failed logins followed by successful compromise"
+duration: 120s
+source_ip: "192.168.10.75"
+target_user: "dbadmin"
+target_host: "SQL01.corp.local"
+
+events:
+  # Stage 1: Initial failed attempts
+  - type: windows_failed_login
+    count: 5
+    interval: 3s
+    fields:
+      event_type: windows_failed_login
+      event_id: 4625
+      source_ip: "${SOURCE_IP}"
+      computer_name: "${TARGET_HOST}"
+      target_user: "${TARGET_USER}"
+      logon_type: "3"
+      failure_reason: "Bad password"
+
+  # Stage 2: Another round of failed attempts
+  - type: windows_failed_login
+    count: 3
+    interval: 2s
+    delay: 20s
+    fields:
+      event_type: windows_failed_login
+      event_id: 4625
+      source_ip: "${SOURCE_IP}"
+      computer_name: "${TARGET_HOST}"
+      target_user: "${TARGET_USER}"
+      logon_type: "3"
+      failure_reason: "Bad password"
+
+  # Stage 3: Successful login - credentials compromised!
+  - type: windows_successful_login
+    count: 1
+    delay: 35s
+    fields:
+      event_type: windows_successful_login
+      event_id: 4624
+      source_ip: "${SOURCE_IP}"
+      computer_name: "${TARGET_HOST}"
+      target_user: "${TARGET_USER}"
+      logon_type: "3"
+      authentication_package: "NTLM"
+      logon_process: "NtLmSsp"
+
+expected_alerts:
+  - rule_id: windows_failed_login
+    severity: low
+    min_count: 1
+  - rule_id: windows_successful_login
+    severity: low
+    min_count: 1
+  - rule_id: windows_account_compromise
+    severity: critical
+    min_count: 1
+
+validation:
+  timeout: 150s
+  check_interval: 5s

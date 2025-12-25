@@ -1,0 +1,51 @@
+version: '3.8'
+
+# Docker Compose file for local integration test execution
+# This provides pre-configured services for manual testing and development
+
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: cerberus-test-clickhouse
+    ports:
+      - "8123:8123"  # HTTP interface
+      - "9000:9000"  # Native protocol
+    environment:
+      CLICKHOUSE_DB: cerberus_integration_test
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: testpassword
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - cerberus-test
+
+  redis:
+    image: redis:7-alpine
+    container_name: cerberus-test-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - cerberus-test
+
+volumes:
+  clickhouse_data:
+  redis_data:
+
+networks:
+  cerberus-test:
+    driver: bridge
+

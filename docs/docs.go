@@ -9,17 +9,247 @@ const docTemplate = `{
     "info": {
         "description": "{{escape .Description}}",
         "title": "{{.Title}}",
-        "termsOfService": "http://swagger.io/terms/",
         "contact": {},
-        "license": {
-            "name": "MIT",
-            "url": "https://opensource.org/licenses/MIT"
-        },
         "version": "{{.Version}}"
     },
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/alerts/{id}": {
+            "delete": {
+                "description": "Permanently deletes an alert by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "Delete alert",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/alerts/{id}/assign": {
+            "put": {
+                "description": "Assigns an alert to a user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "Assign alert",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Assignment request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/alerts/{id}/history": {
+            "get": {
+                "description": "Returns the status change history for an alert",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "Get alert status history",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/core.StatusChange"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/alerts/{id}/status": {
+            "put": {
+                "description": "Updates an alert's status to any valid status value",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "Update alert status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Status update request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "note": {
+                                    "type": "string"
+                                },
+                                "status": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/actions": {
             "get": {
                 "description": "Returns a list of all actions",
@@ -241,10 +471,7 @@ const docTemplate = `{
         },
         "/api/alerts": {
             "get": {
-                "description": "Returns a list of alerts",
-                "consumes": [
-                    "application/json"
-                ],
+                "description": "Retrieves a paginated list of alerts with filtering, sorting, and search.\n\n**Disposition Filters Behavior:**\n- ` + "`" + `disposition` + "`" + `: Filter by specific values (case-insensitive). Multiple values allowed.\n- ` + "`" + `has_disposition` + "`" + `: Boolean filter (true=any verdict set, false=undetermined only)\n\n**Conflicting Filter Auto-Resolution:**\nWhen both filters are specified, conflicts are automatically resolved:\n- ` + "`" + `has_disposition=true\u0026disposition=undetermined` + "`" + `: undetermined is removed from disposition filter\n- ` + "`" + `has_disposition=false\u0026disposition=[any value]` + "`" + `: disposition filter is ignored (only undetermined returned)\n\nInvalid disposition values are silently ignored. Maximum 10 disposition values per request.",
                 "produces": [
                     "application/json"
                 ],
@@ -252,22 +479,135 @@ const docTemplate = `{
                     "alerts"
                 ],
                 "summary": "Get alerts",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number (default 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page (default 100, max 10000)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search query (title, description, rule name)",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by severity (critical, high, medium, low)",
+                        "name": "severity",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by status (pending, acknowledged, investigating, resolved, escalated, closed)",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by rule ID",
+                        "name": "rule_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by assignee username",
+                        "name": "assigned_to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by tags",
+                        "name": "tags",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by disposition (true_positive, false_positive, benign, undetermined). Case-insensitive. Multiple values allowed.",
+                        "name": "disposition",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Filter by disposition status (true = any verdict set, false = undetermined only)",
+                        "name": "has_disposition",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by MITRE tactic",
+                        "name": "mitre_tactic",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by MITRE technique",
+                        "name": "mitre_technique",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by creation date (RFC3339)",
+                        "name": "created_after",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by creation date (RFC3339)",
+                        "name": "created_before",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by update date (RFC3339)",
+                        "name": "updated_after",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by update date (RFC3339)",
+                        "name": "updated_before",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort field (created_at, updated_at, severity, status) with optional - prefix for desc",
+                        "name": "sort",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort order (asc, desc)",
+                        "name": "sort_order",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/core.Alert"
-                            }
+                            "$ref": "#/definitions/api.PaginationResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 }
             }
         },
         "/api/alerts/{id}/acknowledge": {
-            "post": {
-                "description": "Acknowledge an alert by ID",
+            "put": {
+                "description": "Updates an alert status to acknowledged",
                 "consumes": [
                     "application/json"
                 ],
@@ -277,7 +617,7 @@ const docTemplate = `{
                 "tags": [
                     "alerts"
                 ],
-                "summary": "Acknowledge alert",
+                "summary": "Acknowledge an alert",
                 "parameters": [
                     {
                         "type": "string",
@@ -289,7 +629,16 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Alert acknowledged",
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
                         "schema": {
                             "type": "string"
                         }
@@ -300,8 +649,8 @@ const docTemplate = `{
                             "type": "string"
                         }
                     },
-                    "503": {
-                        "description": "Alert storage not available",
+                    "500": {
+                        "description": "Internal server error",
                         "schema": {
                             "type": "string"
                         }
@@ -309,9 +658,68 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/alerts/{id}/assignee": {
+            "patch": {
+                "description": "Updates an alert's assignee with nullable support for unassignment",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "Update alert assignee",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Assignee update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.UpdateAssigneeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.UpdateAssigneeResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/alerts/{id}/dismiss": {
             "post": {
-                "description": "Dismiss an alert by ID",
+                "description": "Mark an alert as dismissed",
                 "consumes": [
                     "application/json"
                 ],
@@ -347,8 +755,248 @@ const docTemplate = `{
                             "type": "string"
                         }
                     },
-                    "503": {
-                        "description": "Alert storage not available",
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/alerts/{id}/disposition": {
+            "patch": {
+                "description": "Updates an alert's disposition (analyst verdict) with reason and audit logging",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "Update alert disposition",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Disposition update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.UpdateDispositionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.UpdateDispositionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/alerts/{id}/investigation": {
+            "post": {
+                "description": "Creates a new investigation from an alert with auto-generated title/description",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "Create investigation from alert",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Optional investigation details",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/api.CreateInvestigationFromAlertRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/api.CreateInvestigationFromAlertResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Authentication required",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Alert already linked to an investigation",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Links an alert to an existing investigation (bidirectional linking)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "Link alert to existing investigation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Investigation to link",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.LinkInvestigationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.LinkInvestigationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Authentication required",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Alert or investigation not found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/config": {
+            "get": {
+                "description": "Returns authentication configuration for client-side use (public endpoint, no sensitive data)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Get authentication configuration",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/status": {
+            "get": {
+                "description": "Check if the current request is authenticated and return user info with CSRF token",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Check authentication status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "type": "string"
                         }
@@ -681,33 +1329,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/listeners": {
-            "get": {
-                "description": "Returns information about active listeners",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "system"
-                ],
-                "summary": "Get listeners",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            }
-        },
         "/api/rules": {
             "get": {
-                "description": "Returns a list of all detection rules",
+                "description": "Returns a paginated list of detection rules",
                 "consumes": [
                     "application/json"
                 ],
@@ -718,14 +1342,26 @@ const docTemplate = `{
                     "rules"
                 ],
                 "summary": "Get rules",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page (default: 50, max: 1000)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Paginated rules response",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/core.Rule"
-                            }
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "503": {
@@ -882,9 +1518,6379 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/rules/{id}": {
+        "/api/users/assignable": {
             "get": {
-                "description": "Get a detection rule by ID",
+                "description": "Returns a list of active users who can be assigned to alerts",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts",
+                    "users"
+                ],
+                "summary": "Get assignable users",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by username (case-insensitive contains)",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum users to return (1-500, default 100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.AssignableUsersResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid parameters",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Authentication required",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/alerts/{id}": {
+            "get": {
+                "description": "Retrieves a single alert by its ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "Get alert by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID (UUID format)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/core.Alert"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid alert ID format",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Alert not found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/alerts/{id}/evidence": {
+            "get": {
+                "description": "Get all evidence files attached to an alert",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "evidence"
+                ],
+                "summary": "List evidence",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/core.Evidence"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Upload an evidence file and attach it to an alert",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "evidence"
+                ],
+                "summary": "Upload evidence",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Evidence file",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Description of the evidence",
+                        "name": "description",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/core.Evidence"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Alert not found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "File too large",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/alerts/{id}/evidence/{evidence_id}": {
+            "get": {
+                "description": "Download a specific evidence file",
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "evidence"
+                ],
+                "summary": "Download evidence",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Evidence ID",
+                        "name": "evidence_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Evidence not found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete an evidence file from an alert",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "evidence"
+                ],
+                "summary": "Delete evidence",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Evidence ID",
+                        "name": "evidence_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Evidence not found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/alerts/{id}/evidence/{evidence_id}/download": {
+            "get": {
+                "description": "Download a specific evidence file (alternate endpoint)",
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "evidence"
+                ],
+                "summary": "Download evidence file",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Evidence ID",
+                        "name": "evidence_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Evidence not found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/alerts/{id}/related": {
+            "get": {
+                "description": "Get all alerts that are linked to the specified alert",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "List related alerts",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/core.AlertLinkResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create a bi-directional relationship between two alerts. This operation is idempotent - if the link already exists, returns 200 OK with the existing link.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "Link alerts",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Link request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/core.AlertLinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Link already exists (idempotent)",
+                        "schema": {
+                            "$ref": "#/definitions/core.AlertLink"
+                        }
+                    },
+                    "201": {
+                        "description": "Link created",
+                        "schema": {
+                            "$ref": "#/definitions/core.AlertLink"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Alert not found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/alerts/{id}/related/{related_id}": {
+            "delete": {
+                "description": "Remove the bi-directional relationship between two alerts. This operation is idempotent - if the link doesn't exist, returns 204 No Content.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "Unlink alerts",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Related Alert ID to unlink",
+                        "name": "related_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content (link deleted or didn't exist)"
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/approvals": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve approval requests with optional filtering by status, playbook, alert",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "approvals"
+                ],
+                "summary": "List approval requests",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by status (pending, approved, rejected, expired, escalated)",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by playbook ID",
+                        "name": "playbook_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by alert ID",
+                        "name": "alert_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by approver ID",
+                        "name": "approver_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page (default: 50, max: 100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.ApprovalListResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/approvals/expire": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Manually trigger expiration check for expired approval requests",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "approvals"
+                ],
+                "summary": "Expire approvals",
+                "responses": {
+                    "200": {
+                        "description": "Expiration result",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/approvals/pending": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve pending approval requests where the current user is an authorized approver",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "approvals"
+                ],
+                "summary": "Get my pending approvals",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Items per page (default: 50, max: 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset (default: 0)",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/soar.ApprovalRequest"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/approvals/stats": {
+            "get": {
+                "description": "Get statistics about playbook approval workflows",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "playbooks"
+                ],
+                "summary": "Get approval statistics",
+                "responses": {
+                    "200": {
+                        "description": "Approval statistics",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/approvals/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve a specific approval request by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "approvals"
+                ],
+                "summary": "Get approval request",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Approval request ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/soar.ApprovalRequest"
+                        }
+                    },
+                    "404": {
+                        "description": "Approval not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Cancel a pending approval request",
+                "tags": [
+                    "approvals"
+                ],
+                "summary": "Cancel approval request",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Approval request ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Approval cancelled"
+                    },
+                    "400": {
+                        "description": "Invalid request or approval not pending",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Approval not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Approve, reject, escalate, or comment on an approval request",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "approvals"
+                ],
+                "summary": "Process approval action",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Approval request ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Action to perform",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.ApprovalActionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated approval request",
+                        "schema": {
+                            "$ref": "#/definitions/soar.ApprovalRequest"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Approval not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict - optimistic lock failed",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/approvals/{id}/actions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve the history of actions for an approval request",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "approvals"
+                ],
+                "summary": "Get approval actions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Approval request ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/soar.ApprovalAction"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Approval not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/csrf-token": {
+            "get": {
+                "description": "Returns the current CSRF token from the httpOnly cookie",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Get CSRF token",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/login": {
+            "post": {
+                "description": "Authenticates a user with username and password, returns JWT and CSRF tokens",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Authenticate user",
+                "parameters": [
+                    {
+                        "description": "Login credentials",
+                        "name": "credentials",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "password": {
+                                    "type": "string"
+                                },
+                                "username": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/logout": {
+            "post": {
+                "responses": {}
+            }
+        },
+        "/api/v1/auth/mfa/disable": {
+            "post": {
+                "description": "Disables MFA and removes TOTP secret",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Disable MFA for current user",
+                "parameters": [
+                    {
+                        "description": "TOTP verification code for confirmation",
+                        "name": "code",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/mfa/enable": {
+            "post": {
+                "description": "Generates a TOTP secret and QR code for MFA enrollment",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Enable MFA for current user",
+                "responses": {
+                    "200": {
+                        "description": "QR code and secret",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/mfa/verify": {
+            "post": {
+                "description": "Verifies a TOTP code and enables MFA for the user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Verify and enable MFA",
+                "parameters": [
+                    {
+                        "description": "TOTP verification code",
+                        "name": "code",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/correlation-rules": {
+            "get": {
+                "description": "This endpoint has been deprecated and replaced by unified /api/v1/rules",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "Deprecated endpoint",
+                "responses": {
+                    "410": {
+                        "description": "Endpoint deprecated",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/dlq": {
+            "get": {
+                "description": "Returns a paginated list of dead-letter queue events with optional filtering",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dlq"
+                ],
+                "summary": "List DLQ events",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number (default 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page (default 50, max 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by status (pending, replayed, discarded)",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by protocol (syslog, cef, json, fluentd)",
+                        "name": "protocol",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.PaginationResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/dlq/replay-all": {
+            "post": {
+                "description": "Attempts to re-ingest all pending DLQ events in batch",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dlq"
+                ],
+                "summary": "Replay all pending DLQ events",
+                "responses": {
+                    "200": {
+                        "description": "Replay statistics",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/dlq/{id}": {
+            "get": {
+                "description": "Returns a single DLQ event by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dlq"
+                ],
+                "summary": "Get DLQ event",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "DLQ Event ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ingest.DLQEvent"
+                        }
+                    },
+                    "404": {
+                        "description": "DLQ event not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Marks a DLQ event as discarded (does not delete it)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dlq"
+                ],
+                "summary": "Discard DLQ event",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "DLQ Event ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "DLQ event not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/dlq/{id}/replay": {
+            "post": {
+                "description": "Attempts to re-ingest a DLQ event through the appropriate ingestion handler",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dlq"
+                ],
+                "summary": "Replay DLQ event",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "DLQ Event ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "DLQ event not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/events/search": {
+            "post": {
+                "description": "Execute a CQL query to search and filter security events",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Search events with CQL",
+                "parameters": [
+                    {
+                        "description": "Search request with CQL query",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.SearchRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Search results with pagination",
+                        "schema": {
+                            "$ref": "#/definitions/api.SearchResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query syntax or request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Query execution error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Query timeout or service unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/events/search/fields": {
+            "get": {
+                "description": "Returns a list of available fields for event search",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Get search fields",
+                "responses": {
+                    "200": {
+                        "description": "List of searchable fields",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/events/search/operators": {
+            "get": {
+                "description": "Returns a list of available CQL operators",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Get search operators",
+                "responses": {
+                    "200": {
+                        "description": "List of operators",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/events/search/validate": {
+            "post": {
+                "description": "Validate a CQL query syntax without executing it",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Validate CQL query",
+                "parameters": [
+                    {
+                        "description": "Query to validate",
+                        "name": "query",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Validation result",
+                        "schema": {
+                            "$ref": "#/definitions/api.QueryValidationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/feeds": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns a list of configured SIGMA rule feeds",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "feeds"
+                ],
+                "summary": "List all feeds",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page (default: 50, max: 100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.FeedsListResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Creates a new SIGMA rule feed configuration",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "feeds"
+                ],
+                "summary": "Create a new feed",
+                "parameters": [
+                    {
+                        "description": "Feed configuration",
+                        "name": "feed",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.CreateFeedRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/api.FeedResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/feeds/summary": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns aggregate statistics for all SIGMA rule feeds",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "feeds"
+                ],
+                "summary": "Get feeds summary",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.FeedsSummaryResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/feeds/sync-all": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Triggers asynchronous synchronization of all enabled SIGMA rule feeds. Returns immediately with 202 Accepted. Poll individual feed stats for completion status.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "feeds"
+                ],
+                "summary": "Sync all feeds (async)",
+                "responses": {
+                    "202": {
+                        "description": "Sync operations accepted and running in background",
+                        "schema": {
+                            "$ref": "#/definitions/api.SyncStatusResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/feeds/templates": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns a list of pre-configured feed templates",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "feeds"
+                ],
+                "summary": "Get feed templates",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/feeds.FeedTemplate"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/feeds/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns a single feed by its ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "feeds"
+                ],
+                "summary": "Get feed by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Feed ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.FeedResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Updates an existing SIGMA rule feed configuration",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "feeds"
+                ],
+                "summary": "Update a feed",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Feed ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Feed configuration updates",
+                        "name": "feed",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.UpdateFeedRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.FeedResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Deletes a SIGMA rule feed configuration",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "feeds"
+                ],
+                "summary": "Delete a feed",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Feed ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Feed deleted successfully"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/feeds/{id}/disable": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Disables a SIGMA rule feed to prevent automatic synchronization",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "feeds"
+                ],
+                "summary": "Disable a feed",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Feed ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.FeedResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/feeds/{id}/enable": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Enables a SIGMA rule feed for automatic synchronization",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "feeds"
+                ],
+                "summary": "Enable a feed",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Feed ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.FeedResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/feeds/{id}/history": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns synchronization history for a SIGMA rule feed",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "feeds"
+                ],
+                "summary": "Get feed sync history",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Feed ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum number of results (default: 20, max: 100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/feeds.FeedSyncResult"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/feeds/{id}/stats": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns detailed statistics for a SIGMA rule feed",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "feeds"
+                ],
+                "summary": "Get feed statistics",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Feed ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/feeds.FeedStats"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/feeds/{id}/sync": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Triggers asynchronous synchronization of a SIGMA rule feed. Returns immediately with 202 Accepted. Poll feed stats for completion status.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "feeds"
+                ],
+                "summary": "Sync a feed (async)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Feed ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Sync operation accepted and running in background",
+                        "schema": {
+                            "$ref": "#/definitions/api.SyncStatusResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Feed is already syncing",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/feeds/{id}/test": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Tests connectivity to a SIGMA rule feed source",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "feeds"
+                ],
+                "summary": "Test feed connection",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Feed ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/hunt/iocs": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Initiate a threat hunt for specified indicators of compromise.\nThis is a placeholder endpoint that logs the hunt request.\nIn production, this would trigger searches across SIEM, EDR, and other security tools.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "remediation"
+                ],
+                "summary": "Hunt for IOCs",
+                "parameters": [
+                    {
+                        "description": "Hunt IOCs request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.HuntIOCsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "IOC hunt initiated",
+                        "schema": {
+                            "$ref": "#/definitions/api.HuntIOCsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/api.RemediationError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.RemediationError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/investigations": {
+            "get": {
+                "description": "Returns a list of investigations with pagination and optional filters",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "investigations"
+                ],
+                "summary": "Get investigations",
+                "parameters": [
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number (1-based)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 1000,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Items per page (1-1000)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "open",
+                        "description": "Filter by status",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "critical",
+                        "description": "Filter by priority",
+                        "name": "priority",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "user123",
+                        "description": "Filter by assignee ID",
+                        "name": "assignee",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.PaginationResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Creates a new investigation",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "investigations"
+                ],
+                "summary": "Create investigation",
+                "parameters": [
+                    {
+                        "description": "Investigation to create",
+                        "name": "investigation",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.CreateInvestigationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/core.Investigation"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/investigations/statistics": {
+            "get": {
+                "description": "Returns statistical data about investigations including counts by status, priority, and average resolution time",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "investigations"
+                ],
+                "summary": "Get investigation statistics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "Investigation storage not available",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/investigations/{id}": {
+            "get": {
+                "description": "Returns a single investigation by ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "investigations"
+                ],
+                "summary": "Get investigation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "INV-20250108-0042",
+                        "description": "Investigation ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/core.Investigation"
+                        }
+                    },
+                    "404": {
+                        "description": "Investigation not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Updates an existing investigation",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "investigations"
+                ],
+                "summary": "Update investigation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Investigation ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Investigation updates",
+                        "name": "investigation",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.UpdateInvestigationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/core.Investigation"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Investigation not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Deletes an investigation",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "investigations"
+                ],
+                "summary": "Delete investigation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Investigation ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Investigation not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/investigations/{id}/alerts": {
+            "post": {
+                "description": "Links an alert to an investigation",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "investigations"
+                ],
+                "summary": "Add alert to investigation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Investigation ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Alert ID",
+                        "name": "alert",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.AddAlertRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/core.Investigation"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Investigation not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/investigations/{id}/close": {
+            "post": {
+                "description": "Closes an investigation with a verdict",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "investigations"
+                ],
+                "summary": "Close investigation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Investigation ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Closure details",
+                        "name": "verdict",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.CloseInvestigationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/core.Investigation"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Investigation not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/investigations/{id}/evidence": {
+            "get": {
+                "description": "Get all evidence files attached to an investigation",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "evidence",
+                    "investigations"
+                ],
+                "summary": "List investigation evidence",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Investigation ID (format: INV-YYYYMMDD-XXXX)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/core.Evidence"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Investigation not found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Upload an evidence file and attach it to an investigation",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "evidence",
+                    "investigations"
+                ],
+                "summary": "Upload investigation evidence",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Investigation ID (format: INV-YYYYMMDD-XXXX)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Evidence file",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Description of the evidence",
+                        "name": "description",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/core.Evidence"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Investigation is closed",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Investigation not found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "File too large",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "Unsupported media type",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/investigations/{id}/evidence/{evidence_id}": {
+            "get": {
+                "description": "Get metadata for a specific evidence file attached to an investigation",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "evidence",
+                    "investigations"
+                ],
+                "summary": "Get investigation evidence metadata",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Investigation ID (format: INV-YYYYMMDD-XXXX)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Evidence ID (UUID)",
+                        "name": "evidence_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/core.Evidence"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Evidence not found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete an evidence file from an investigation",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "evidence",
+                    "investigations"
+                ],
+                "summary": "Delete investigation evidence",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Investigation ID (format: INV-YYYYMMDD-XXXX)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Evidence ID (UUID)",
+                        "name": "evidence_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Investigation is closed",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Evidence not found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/investigations/{id}/evidence/{evidence_id}/download": {
+            "get": {
+                "description": "Download a specific evidence file attached to an investigation",
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "evidence",
+                    "investigations"
+                ],
+                "summary": "Download investigation evidence",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Investigation ID (format: INV-YYYYMMDD-XXXX)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Evidence ID (UUID)",
+                        "name": "evidence_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Evidence not found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/investigations/{id}/notes": {
+            "post": {
+                "description": "Adds a note to an investigation",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "investigations"
+                ],
+                "summary": "Add note to investigation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Investigation ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Note content",
+                        "name": "note",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.AddNoteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/core.Investigation"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Investigation not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/investigations/{id}/timeline": {
+            "get": {
+                "description": "Returns chronological events for an investigation",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "investigations"
+                ],
+                "summary": "Get investigation timeline",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Investigation ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Investigation not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/listener-templates": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns all available built-in listener templates",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "listeners"
+                ],
+                "summary": "List listener templates",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/api.ListenerTemplate"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/listener-templates/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns a single listener template by ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "listeners"
+                ],
+                "summary": "Get a listener template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Template ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.ListenerTemplate"
+                        }
+                    },
+                    "404": {
+                        "description": "Template not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/listeners": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns all configured dynamic listeners with pagination and runtime statistics",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "listeners"
+                ],
+                "summary": "List all dynamic listeners",
+                "parameters": [
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 1000,
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Items per page (default: 50, max: 1000)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.PaginationResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/storage.DynamicListener"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to retrieve listeners",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "Listener manager not available",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Creates a new dynamic listener with specified configuration",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "listeners"
+                ],
+                "summary": "Create a dynamic listener",
+                "parameters": [
+                    {
+                        "description": "Listener configuration",
+                        "name": "listener",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/storage.DynamicListener"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/storage.DynamicListener"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid JSON or validation error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to create listener",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "Listener manager not available",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/listeners/from-template/{templateId}": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Creates a new dynamic listener from a built-in template with optional overrides",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "listeners"
+                ],
+                "summary": "Create listener from template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Template ID",
+                        "name": "templateId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Optional configuration overrides",
+                        "name": "overrides",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/storage.DynamicListener"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/storage.DynamicListener"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid JSON or validation error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Template not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to create listener",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "Listener manager not available",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/listeners/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns a single dynamic listener by ID with runtime statistics",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "listeners"
+                ],
+                "summary": "Get a dynamic listener",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Listener ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/storage.DynamicListener"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid listener ID format",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Listener not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to retrieve listener",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "Listener manager not available",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Updates an existing dynamic listener configuration (must be stopped first)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "listeners"
+                ],
+                "summary": "Update a dynamic listener",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Listener ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated listener configuration",
+                        "name": "listener",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/storage.DynamicListener"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/storage.DynamicListener"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid JSON, validation error, or listener is running",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Listener not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to update listener",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "Listener manager not available",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Deletes a dynamic listener by ID (must be stopped first)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "listeners"
+                ],
+                "summary": "Delete a dynamic listener",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Listener ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "allOf": [
+                                    {
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "status": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid ID format or listener is running",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Listener not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to delete listener",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "Listener manager not available",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/listeners/{id}/dlq": {
+            "get": {
+                "description": "Returns a paginated list of dead-letter queue events for a specific listener",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "listeners",
+                    "dlq"
+                ],
+                "summary": "List DLQ events for a specific listener",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Listener ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number (default 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page (default 50, max 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by status (pending, replayed, discarded)",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.PaginationResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/listeners/{id}/dlq/{eventId}": {
+            "get": {
+                "description": "Returns a single DLQ event by ID, verifying it belongs to the specified listener",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "listeners",
+                    "dlq"
+                ],
+                "summary": "Get DLQ event for a specific listener",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Listener ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "DLQ Event ID",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ingest.DLQEvent"
+                        }
+                    },
+                    "404": {
+                        "description": "DLQ event not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Marks a DLQ event as discarded, verifying it belongs to the specified listener",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "listeners",
+                    "dlq"
+                ],
+                "summary": "Discard DLQ event for a specific listener",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Listener ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "DLQ Event ID",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "DLQ event not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/listeners/{id}/dlq/{eventId}/replay": {
+            "post": {
+                "description": "Attempts to re-ingest a DLQ event, verifying it belongs to the specified listener",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "listeners",
+                    "dlq"
+                ],
+                "summary": "Replay DLQ event for a specific listener",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Listener ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "DLQ Event ID",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "DLQ event not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/listeners/{id}/restart": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Restarts a running dynamic listener (stop then start)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "listeners"
+                ],
+                "summary": "Restart a dynamic listener",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Listener ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "allOf": [
+                                    {
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "message": {
+                                                "type": "string"
+                                            },
+                                            "status": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid ID format or listener not running",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Listener not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to restart listener",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "Listener manager not available",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/listeners/{id}/start": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Starts a stopped dynamic listener",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "listeners"
+                ],
+                "summary": "Start a dynamic listener",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Listener ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "allOf": [
+                                    {
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "message": {
+                                                "type": "string"
+                                            },
+                                            "status": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid ID format or listener already running",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Listener not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to start listener",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "Listener manager not available",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/listeners/{id}/stats": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns real-time statistics for a running dynamic listener",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "listeners"
+                ],
+                "summary": "Get listener statistics",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Listener ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/storage.ListenerStats"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid listener ID format or listener not running",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Listener not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to retrieve statistics",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "Listener manager not available",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/listeners/{id}/stop": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Stops a running dynamic listener",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "listeners"
+                ],
+                "summary": "Stop a dynamic listener",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Listener ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "allOf": [
+                                    {
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "message": {
+                                                "type": "string"
+                                            },
+                                            "status": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid ID format or listener not running",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Listener not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to stop listener",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "Listener manager not available",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/mitre/coverage": {
+            "get": {
+                "description": "Returns comprehensive coverage statistics across all tactics and techniques",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "mitre"
+                ],
+                "summary": "Get MITRE ATT\u0026CK coverage report",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.CoverageReport"
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to generate coverage report",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/mitre/coverage/data-sources": {
+            "get": {
+                "description": "Returns coverage statistics grouped by data source",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "mitre"
+                ],
+                "summary": "Get coverage by data source",
+                "responses": {
+                    "200": {
+                        "description": "Data source coverage",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/mitre/coverage/matrix": {
+            "get": {
+                "description": "Returns detailed coverage matrix with all tactics and techniques",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "mitre"
+                ],
+                "summary": "Get MITRE ATT\u0026CK coverage matrix",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.CoverageMatrix"
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to generate coverage matrix",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/mitre/data-sources": {
+            "get": {
+                "description": "Returns all data sources from the MITRE ATT\u0026CK framework",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "mitre"
+                ],
+                "summary": "Get all MITRE ATT\u0026CK data sources",
+                "responses": {
+                    "200": {
+                        "description": "Data sources",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/mitre.DataSource"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/mitre/import": {
+            "post": {
+                "description": "Imports techniques, sub-techniques, tactics, and data sources from a STIX bundle file",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "mitre"
+                ],
+                "summary": "Import MITRE ATT\u0026CK STIX bundle",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "STIX bundle JSON file",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Import result",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/mitre/statistics": {
+            "get": {
+                "description": "Returns statistics about MITRE ATT\u0026CK framework coverage",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "mitre"
+                ],
+                "summary": "Get MITRE ATT\u0026CK statistics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "MITRE storage not available",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/mitre/tactics": {
+            "get": {
+                "description": "Returns all MITRE ATT\u0026CK tactics",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "mitre"
+                ],
+                "summary": "Get MITRE ATT\u0026CK tactics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/mitre.Tactic"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "MITRE storage not available",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/mitre/tactics/{id}": {
+            "get": {
+                "description": "Returns a single MITRE ATT\u0026CK tactic",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "mitre"
+                ],
+                "summary": "Get MITRE ATT\u0026CK tactic by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Tactic ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/mitre.Tactic"
+                        }
+                    },
+                    "404": {
+                        "description": "Tactic not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "MITRE storage not available",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/mitre/techniques": {
+            "get": {
+                "description": "Returns MITRE ATT\u0026CK techniques with pagination",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "mitre"
+                ],
+                "summary": "Get MITRE ATT\u0026CK techniques",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page (default: 50)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by tactic ID",
+                        "name": "tacticId",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated techniques",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "MITRE storage not available",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/mitre/techniques/{id}": {
+            "get": {
+                "description": "Returns a single MITRE ATT\u0026CK technique",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "mitre"
+                ],
+                "summary": "Get MITRE ATT\u0026CK technique by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Technique ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/mitre.Technique"
+                        }
+                    },
+                    "404": {
+                        "description": "Technique not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "MITRE storage not available",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/mitre/techniques/{id}/subtechniques": {
+            "get": {
+                "description": "Returns all sub-techniques for a given parent technique ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "mitre"
+                ],
+                "summary": "Get sub-techniques for a parent technique",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Parent technique ID (e.g., T1055)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Sub-techniques",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/mitre.Technique"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid technique ID",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Technique not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/mitre/update": {
+            "post": {
+                "description": "Downloads and imports the latest MITRE ATT\u0026CK STIX bundle from GitHub",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "mitre"
+                ],
+                "summary": "Update MITRE ATT\u0026CK data from latest bundle",
+                "responses": {
+                    "200": {
+                        "description": "Import result",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/ml/config": {
+            "get": {
+                "description": "Returns current ML system configuration",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ml"
+                ],
+                "summary": "Get ML configuration",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.MLAPIConfig"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Update ML system configuration",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ml"
+                ],
+                "summary": "Update ML configuration",
+                "parameters": [
+                    {
+                        "description": "ML configuration",
+                        "name": "config",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.MLAPIConfig"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/ml/health": {
+            "get": {
+                "description": "Returns detailed health information about the ML anomaly detection system",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ml"
+                ],
+                "summary": "Get ML system health",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.MLDetailedHealthResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/ml/models": {
+            "get": {
+                "description": "Returns a list of all ML models with their metadata",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ml-models"
+                ],
+                "summary": "List ML models",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by model name",
+                        "name": "name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by status (active, retired, training)",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by algorithm",
+                        "name": "algorithm",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/storage.ModelMetadata"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/ml/models/{name}/prune": {
+            "post": {
+                "description": "Retires old model versions, keeping only the specified number of recent versions",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ml-models"
+                ],
+                "summary": "Prune ML model versions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Model name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of versions to keep",
+                        "name": "keep_versions",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/ml/models/{name}/{version}": {
+            "get": {
+                "description": "Returns metadata for a specific ML model version",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ml-models"
+                ],
+                "summary": "Get ML model",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Model name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Model version",
+                        "name": "version",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/storage.ModelMetadata"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/ml/models/{name}/{version}/activate": {
+            "post": {
+                "description": "Activates a specific model version and retires previous active versions",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ml-models"
+                ],
+                "summary": "Activate ML model",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Model name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Model version",
+                        "name": "version",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/ml/models/{name}/{version}/rollback": {
+            "post": {
+                "description": "Rolls back to a previous model version",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ml-models"
+                ],
+                "summary": "Rollback ML model",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Model name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Target version to rollback to",
+                        "name": "version",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/ml/models/{name}/{version}/status": {
+            "put": {
+                "description": "Updates the status of a model version",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ml-models"
+                ],
+                "summary": "Update ML model status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Model name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Model version",
+                        "name": "version",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Status object with 'status' field",
+                        "name": "status",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/ml/performance": {
+            "get": {
+                "description": "Returns historical performance metrics for the ML anomaly detection system",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ml"
+                ],
+                "summary": "Get ML performance history",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/ml.TrainingPerformance"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/ml/status": {
+            "get": {
+                "description": "Returns current status and statistics of the ML anomaly detection system",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ml"
+                ],
+                "summary": "Get ML system status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.MLStatusResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/ml/train": {
+            "post": {
+                "description": "Manually trigger ML model training with current data",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ml"
+                ],
+                "summary": "Force ML model training",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/playbook-executions": {
+            "get": {
+                "description": "Retrieve list of playbook executions with optional filtering by playbook_id, alert_id, status",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "playbooks"
+                ],
+                "summary": "List playbook executions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by playbook ID",
+                        "name": "playbook_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by alert ID",
+                        "name": "alert_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by status (running, completed, failed)",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page (default: 50, max: 100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated list of executions",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/playbook-executions/{id}": {
+            "get": {
+                "description": "Retrieve status, step results, and metadata for a playbook execution",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "playbooks"
+                ],
+                "summary": "Get playbook execution status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Execution ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Execution status and results",
+                        "schema": {
+                            "$ref": "#/definitions/api.PlaybookExecutionResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Execution not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/playbooks": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve a paginated list of playbooks with optional filtering",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "playbooks"
+                ],
+                "summary": "List playbooks",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page (default: 50, max: 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Filter by enabled status",
+                        "name": "enabled",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by tag",
+                        "name": "tag",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated list of playbooks",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a new playbook with validation",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "playbooks"
+                ],
+                "summary": "Create playbook",
+                "parameters": [
+                    {
+                        "description": "Playbook to create",
+                        "name": "playbook",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/soar.Playbook"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created playbook",
+                        "schema": {
+                            "$ref": "#/definitions/soar.Playbook"
+                        }
+                    },
+                    "400": {
+                        "description": "Validation error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "409": {
+                        "description": "Name conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/playbooks/executions/{executionId}/approve": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Approve a playbook execution that is in awaiting_approval status.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "playbooks"
+                ],
+                "summary": "Approve playbook execution",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Execution ID",
+                        "name": "executionId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Approval request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.ApprovalRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Execution approved",
+                        "schema": {
+                            "$ref": "#/definitions/api.ApprovalResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request or expired",
+                        "schema": {
+                            "$ref": "#/definitions/api.ApprovalError"
+                        }
+                    },
+                    "404": {
+                        "description": "Execution not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/playbooks/executions/{executionId}/reject": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Reject a playbook execution that is in awaiting_approval status.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "playbooks"
+                ],
+                "summary": "Reject playbook execution",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Execution ID",
+                        "name": "executionId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Rejection request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.ApprovalRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Execution rejected",
+                        "schema": {
+                            "$ref": "#/definitions/api.ApprovalResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ApprovalError"
+                        }
+                    },
+                    "404": {
+                        "description": "Execution not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/playbooks/stats": {
+            "get": {
+                "description": "Returns aggregated statistics for all playbooks (total, enabled, disabled counts)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "playbooks"
+                ],
+                "summary": "Get playbook statistics",
+                "responses": {
+                    "200": {
+                        "description": "Playbook statistics",
+                        "schema": {
+                            "$ref": "#/definitions/storage.PlaybookStats"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden - insufficient permissions",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "Service unavailable - playbook management not configured",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/playbooks/validate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Validate playbook configuration without creating it",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "playbooks"
+                ],
+                "summary": "Validate playbook",
+                "parameters": [
+                    {
+                        "description": "Playbook to validate",
+                        "name": "playbook",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/soar.Playbook"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.PlaybookValidationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid JSON",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/playbooks/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve a specific playbook by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "playbooks"
+                ],
+                "summary": "Get playbook",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Playbook ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Playbook details",
+                        "schema": {
+                            "$ref": "#/definitions/soar.Playbook"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Playbook not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update an existing playbook",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "playbooks"
+                ],
+                "summary": "Update playbook",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Playbook ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated playbook",
+                        "name": "playbook",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/soar.Playbook"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated playbook",
+                        "schema": {
+                            "$ref": "#/definitions/soar.Playbook"
+                        }
+                    },
+                    "400": {
+                        "description": "Validation error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Playbook not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Name conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Delete a playbook by ID",
+                "tags": [
+                    "playbooks"
+                ],
+                "summary": "Delete playbook",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Playbook ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Playbook deleted"
+                    },
+                    "400": {
+                        "description": "Invalid ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Playbook not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/playbooks/{id}/disable": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Disable a playbook by ID",
+                "tags": [
+                    "playbooks"
+                ],
+                "summary": "Disable playbook",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Playbook ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/soar.Playbook"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Playbook not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/playbooks/{id}/duplicate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a copy of an existing playbook",
+                "tags": [
+                    "playbooks"
+                ],
+                "summary": "Duplicate playbook",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Original playbook ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/soar.Playbook"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Playbook not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/playbooks/{id}/enable": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Enable a playbook by ID",
+                "tags": [
+                    "playbooks"
+                ],
+                "summary": "Enable playbook",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Playbook ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/soar.Playbook"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Playbook not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/playbooks/{id}/execute": {
+            "post": {
+                "description": "Trigger execution of a playbook for a specific alert. TASK 100: Now loads playbook from storage.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "playbooks"
+                ],
+                "summary": "Execute a playbook for an alert",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Playbook ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Execution request with alert ID",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.PlaybookExecutionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Playbook execution started",
+                        "schema": {
+                            "$ref": "#/definitions/api.PlaybookExecutionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request or playbook disabled",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Playbook or alert not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Execution error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service unavailable - playbook storage or executor not configured",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/remediation/actions/{alertId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve all remediation actions taken for a specific alert.\nThis is a placeholder endpoint that returns mock data.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "remediation"
+                ],
+                "summary": "Get remediation actions for alert",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID",
+                        "name": "alertId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Remediation actions list",
+                        "schema": {
+                            "$ref": "#/definitions/api.GetRemediationActionsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/api.RemediationError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Alert not found",
+                        "schema": {
+                            "$ref": "#/definitions/api.RemediationError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.RemediationError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/remediation/block-ip": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Block a malicious IP address. This is a placeholder endpoint that logs the remediation request.\nIn production, this would integrate with a firewall, EDR, or SOAR platform.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "remediation"
+                ],
+                "summary": "Block IP address",
+                "parameters": [
+                    {
+                        "description": "Block IP request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.BlockIPRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "IP blocked successfully",
+                        "schema": {
+                            "$ref": "#/definitions/api.BlockIPResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/api.RemediationError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.RemediationError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/remediation/unblock-ip": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Unblock a previously blocked IP address. This is a placeholder endpoint that logs the remediation request.\nIn production, this would integrate with a firewall, EDR, or SOAR platform.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "remediation"
+                ],
+                "summary": "Unblock IP address",
+                "parameters": [
+                    {
+                        "description": "Unblock IP request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.UnblockIPRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "IP unblocked successfully",
+                        "schema": {
+                            "$ref": "#/definitions/api.UnblockIPResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/api.RemediationError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.RemediationError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/roles": {
+            "get": {
+                "description": "Returns a list of all available roles with their permissions",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "roles"
+                ],
+                "summary": "List all roles",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/storage.Role"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/roles/{id}": {
+            "get": {
+                "description": "Returns details for a specific role including permissions",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "roles"
+                ],
+                "summary": "Get role details",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Role ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/storage.Role"
+                        }
+                    },
+                    "404": {
+                        "description": "Role not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/rules": {
+            "get": {
+                "description": "Returns detection and/or correlation rules with optional filtering",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "Get unified rules list",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "default": "all",
+                        "description": "Rule category (detection|correlation|all)",
+                        "name": "category",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Lifecycle status filter",
+                        "name": "lifecycle_status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "SIGMA logsource category filter",
+                        "name": "logsource_category",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "SIGMA logsource product filter",
+                        "name": "logsource_product",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Enabled filter (true|false)",
+                        "name": "enabled",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 50,
+                        "description": "Results limit (max 1000)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Pagination offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid parameters",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create a rule with automatic category detection",
                 "consumes": [
                     "application/json"
                 ],
@@ -894,7 +7900,502 @@ const docTemplate = `{
                 "tags": [
                     "rules"
                 ],
-                "summary": "Get rule",
+                "summary": "Create unified rule",
+                "parameters": [
+                    {
+                        "description": "Rule object",
+                        "name": "rule",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/core.Rule"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/core.Rule"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid JSON or validation error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "Storage not available",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/rules/bulk-delete": {
+            "post": {
+                "description": "Delete multiple rules in batch with single detector reload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "Bulk delete rules",
+                "parameters": [
+                    {
+                        "description": "Rule IDs to delete",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.BulkOperationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.BulkOperationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Operation failed",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/rules/bulk-disable": {
+            "post": {
+                "description": "Disable multiple rules in batch with single detector reload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "Bulk disable rules",
+                "parameters": [
+                    {
+                        "description": "Rule IDs to disable",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.BulkOperationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.BulkOperationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Operation failed",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/rules/bulk-enable": {
+            "post": {
+                "description": "Enable multiple rules in batch with single detector reload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "Bulk enable rules",
+                "parameters": [
+                    {
+                        "description": "Rule IDs to enable",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.BulkOperationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.BulkOperationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Operation failed",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/rules/export": {
+            "get": {
+                "description": "Export rules as SIGMA YAML or JSON in ZIP archive",
+                "produces": [
+                    "application/zip"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "Export rules",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "default": "sigma",
+                        "description": "Export format (sigma|json)",
+                        "name": "format",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "all",
+                        "description": "Rule category (detection|correlation|all)",
+                        "name": "category",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Specific rule IDs to export",
+                        "name": "rule_ids",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "ZIP archive",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Export failed",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/rules/import": {
+            "post": {
+                "description": "Import SIGMA YAML rules from files or ZIP archive",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "Import rules",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "YAML files or ZIP archive",
+                        "name": "files",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Overwrite existing rules",
+                        "name": "overwrite_existing",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Validate without importing",
+                        "name": "dry_run",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.ImportResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Import failed",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/rules/migrate-cql": {
+            "post": {
+                "description": "Converts CQL-format rules to SIGMA YAML format, optionally preserving originals",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "Migrate CQL rules to SIGMA format",
+                "parameters": [
+                    {
+                        "description": "Migration request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.MigrateCQLRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.MigrateCQLResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/rules/sample-events": {
+            "post": {
+                "description": "Upload a file containing sample events (JSON, JSONL, or CSV format)",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "Upload sample events for testing",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "Sample events file",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.ParsedEvents"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/rules/test": {
+            "post": {
+                "description": "Test a rule against sample events to see which ones match",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "Test a detection rule (TASK 170)",
+                "parameters": [
+                    {
+                        "description": "Rule and events to test",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.RuleTestRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.RuleTestResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/rules/validate": {
+            "post": {
+                "description": "Validate SIGMA YAML without creating the rule",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "Validate rule",
+                "parameters": [
+                    {
+                        "description": "SIGMA YAML to validate",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.ValidateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.ValidateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/rules/{id}": {
+            "get": {
+                "description": "Get a detection or correlation rule by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "Get unified rule",
                 "parameters": [
                     {
                         "type": "string",
@@ -911,20 +8412,869 @@ const docTemplate = `{
                             "$ref": "#/definitions/core.Rule"
                         }
                     },
+                    "404": {
+                        "description": "Rule not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Update a rule with category consistency validation",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "Update unified rule",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Rule ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Rule object",
+                        "name": "rule",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/core.Rule"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/core.Rule"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid JSON or category change",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Rule not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete a detection or correlation rule",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "Delete unified rule",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Rule ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Rule deleted",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Rule not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/rules/{id}/clone": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a copy of an existing rule with optional new name",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "Clone a rule",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Rule ID to clone",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Clone options",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/api.CloneRuleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Cloned rule",
+                        "schema": {
+                            "$ref": "#/definitions/api.CloneRuleResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Rule not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/rules/{id}/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Restore a rule to a specific version from its history",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "Restore rule to previous version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Rule ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Version to restore",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.RestoreRuleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Restored rule",
+                        "schema": {
+                            "$ref": "#/definitions/api.RestoreRuleResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request or version",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Rule or version not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/rules/{id}/test-batch": {
+            "post": {
+                "description": "Test a rule against a batch of events and return aggregated statistics",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "Batch test a rule against multiple events (TASK 170)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Rule ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Batch test request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.BatchTestRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.BatchTestResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/rules/{id}/versions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve the version history for a specific rule",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "Get rule version history",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Rule ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Version history",
+                        "schema": {
+                            "$ref": "#/definitions/api.RuleVersionsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Rule not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/system/complete-setup": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Marks the first-run setup wizard as completed",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Mark setup as complete",
+                "parameters": [
+                    {
+                        "description": "Setup completion data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.SetupCompleteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SetupCompleteResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/system/first-run": {
+            "get": {
+                "description": "Returns whether the application is running for the first time and needs setup",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Check if this is the first run",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.FirstRunResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/users": {
+            "get": {
+                "description": "Returns a list of all users (requires read:users permission)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "List all users",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/storage.User"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Creates a new user with assigned role (requires write:users permission)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Create a new user",
+                "parameters": [
+                    {
+                        "description": "User details",
+                        "name": "user",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "password": {
+                                    "type": "string"
+                                },
+                                "role_id": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                },
+                                "username": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/storage.User"
+                        }
+                    },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
                             "type": "string"
                         }
                     },
-                    "404": {
-                        "description": "Not Found",
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "type": "string"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/users/me": {
+            "get": {
+                "description": "Returns the currently authenticated user with role and permissions (TASK 3.6: Frontend RBAC integration)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Get current user information",
+                "responses": {
+                    "200": {
+                        "description": "User with role and permissions",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/users/{username}": {
+            "get": {
+                "description": "Returns details for a specific user (requires read:users permission)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Get user details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username",
+                        "name": "username",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/storage.User"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "User not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Updates user details (requires write:users permission)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Update user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username",
+                        "name": "username",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "User updates",
+                        "name": "user",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "active": {
+                                    "type": "boolean"
+                                },
+                                "password": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/storage.User"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "User not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Deletes a user (requires write:users permission)",
+                "tags": [
+                    "users"
+                ],
+                "summary": "Delete user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username",
+                        "name": "username",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "User not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/users/{username}/role": {
+            "put": {
+                "description": "Updates a user's role assignment (requires write:users permission)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Update user role",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username",
+                        "name": "username",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New role ID",
+                        "name": "role",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "role_id": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/storage.User"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "User not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/users/{username}/unlock": {
+            "post": {
+                "description": "Unlocks a user account that was locked due to failed login attempts (TASK 39)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Unlock user account",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username",
+                        "name": "username",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "User not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
                         "schema": {
                             "type": "string"
                         }
@@ -957,9 +9307,2003 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/health/detailed": {
+            "get": {
+                "description": "Returns comprehensive health information including system metrics",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "health"
+                ],
+                "summary": "Detailed health information",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.HealthDetailedResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/health/live": {
+            "get": {
+                "description": "Returns 200 if the process is running. No external dependency checks.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "health"
+                ],
+                "summary": "Liveness probe",
+                "responses": {
+                    "200": {
+                        "description": "Process is running",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/health/ready": {
+            "get": {
+                "description": "Checks if ClickHouse and SQLite are accessible",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "health"
+                ],
+                "summary": "Readiness probe",
+                "responses": {
+                    "200": {
+                        "description": "Service is ready",
+                        "schema": {
+                            "$ref": "#/definitions/api.HealthReadyResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service is not ready",
+                        "schema": {
+                            "$ref": "#/definitions/api.HealthReadyResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "api.AddAlertRequest": {
+            "type": "object",
+            "required": [
+                "alert_id"
+            ],
+            "properties": {
+                "alert_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.AddNoteRequest": {
+            "type": "object",
+            "required": [
+                "content"
+            ],
+            "properties": {
+                "content": {
+                    "type": "string",
+                    "maxLength": 5000,
+                    "minLength": 1
+                }
+            }
+        },
+        "api.ApprovalActionRequest": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "description": "approve, reject, escalate, comment",
+                    "type": "string"
+                },
+                "comment": {
+                    "description": "Optional comment",
+                    "type": "string"
+                },
+                "expected_version": {
+                    "description": "For optimistic locking",
+                    "type": "integer"
+                }
+            }
+        },
+        "api.ApprovalError": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "object",
+                    "properties": {
+                        "code": {
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "api.ApprovalListResponse": {
+            "type": "object",
+            "properties": {
+                "has_more": {
+                    "type": "boolean"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/soar.ApprovalRequest"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.ApprovalRequest": {
+            "type": "object",
+            "properties": {
+                "approvedBy": {
+                    "description": "User ID of approver",
+                    "type": "string"
+                },
+                "comment": {
+                    "description": "Optional comment (max 5000 chars)",
+                    "type": "string"
+                }
+            }
+        },
+        "api.ApprovalResponse": {
+            "type": "object",
+            "properties": {
+                "approvedAt": {
+                    "type": "string"
+                },
+                "approvedBy": {
+                    "type": "string"
+                },
+                "comment": {
+                    "type": "string"
+                },
+                "executionId": {
+                    "type": "string"
+                },
+                "rejectedAt": {
+                    "type": "string"
+                },
+                "rejectedBy": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "api.AssignableUser": {
+            "type": "object",
+            "properties": {
+                "roleName": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.AssignableUsersResponse": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer"
+                },
+                "search": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.AssignableUser"
+                    }
+                }
+            }
+        },
+        "api.BatchTestRequest": {
+            "type": "object",
+            "required": [
+                "events"
+            ],
+            "properties": {
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/cerberus_core.Event"
+                    }
+                },
+                "expected_alerts": {
+                    "type": "integer"
+                },
+                "timeout_seconds": {
+                    "description": "Max 30",
+                    "type": "integer"
+                }
+            }
+        },
+        "api.BatchTestResponse": {
+            "type": "object",
+            "properties": {
+                "alerts_generated": {
+                    "type": "integer"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "events_per_second": {
+                    "type": "number"
+                },
+                "matched_events": {
+                    "type": "integer"
+                },
+                "results": {
+                    "description": "Per-event results if requested",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.EventResult"
+                    }
+                },
+                "total_events": {
+                    "type": "integer"
+                },
+                "total_time_ms": {
+                    "type": "number"
+                }
+            }
+        },
+        "api.BlockIPRequest": {
+            "type": "object",
+            "properties": {
+                "alertId": {
+                    "description": "Optional: for audit trail",
+                    "type": "string"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "reason": {
+                    "description": "Optional",
+                    "type": "string"
+                }
+            }
+        },
+        "api.BlockIPResponse": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                },
+                "target": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.BulkOperationRequest": {
+            "type": "object",
+            "properties": {
+                "rule_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.BulkOperationResponse": {
+            "type": "object",
+            "properties": {
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "failed": {
+                    "type": "integer"
+                },
+                "processed": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.CloneRuleRequest": {
+            "type": "object",
+            "properties": {
+                "newName": {
+                    "description": "Optional: defaults to \"Original Name (Copy)\"",
+                    "type": "string"
+                }
+            }
+        },
+        "api.CloneRuleResponse": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "api.CloseInvestigationRequest": {
+            "type": "object",
+            "required": [
+                "resolution_category",
+                "summary",
+                "verdict"
+            ],
+            "properties": {
+                "affected_assets": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "ml_feedback": {
+                    "$ref": "#/definitions/core.MLFeedback"
+                },
+                "resolution_category": {
+                    "type": "string"
+                },
+                "summary": {
+                    "type": "string",
+                    "maxLength": 5000
+                },
+                "verdict": {
+                    "$ref": "#/definitions/core.InvestigationVerdict"
+                }
+            }
+        },
+        "api.ComponentHealth": {
+            "type": "object",
+            "properties": {
+                "latency": {
+                    "description": "How long the check took",
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "\"healthy\", \"unhealthy\", \"degraded\"",
+                    "type": "string"
+                }
+            }
+        },
+        "api.CoverageGap": {
+            "type": "object",
+            "properties": {
+                "tactics": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "technique_id": {
+                    "type": "string"
+                },
+                "technique_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.CoverageMatrix": {
+            "type": "object",
+            "properties": {
+                "tactics": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.CoverageMatrixTactic"
+                    }
+                }
+            }
+        },
+        "api.CoverageMatrixTactic": {
+            "type": "object",
+            "properties": {
+                "tactic_id": {
+                    "type": "string"
+                },
+                "tactic_name": {
+                    "type": "string"
+                },
+                "techniques": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.CoverageMatrixTechnique"
+                    }
+                }
+            }
+        },
+        "api.CoverageMatrixTechnique": {
+            "type": "object",
+            "properties": {
+                "is_covered": {
+                    "type": "boolean"
+                },
+                "rule_count": {
+                    "type": "integer"
+                },
+                "rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.RuleReference"
+                    }
+                },
+                "technique_id": {
+                    "type": "string"
+                },
+                "technique_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.CoverageReport": {
+            "type": "object",
+            "properties": {
+                "coverage_gaps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.CoverageGap"
+                    }
+                },
+                "coverage_percent": {
+                    "type": "number"
+                },
+                "covered_techniques": {
+                    "type": "integer"
+                },
+                "last_updated": {
+                    "type": "string"
+                },
+                "tactic_coverage": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.TacticAnalytics"
+                    }
+                },
+                "total_techniques": {
+                    "type": "integer"
+                },
+                "total_unique_rules": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.CreateFeedRequest": {
+            "type": "object",
+            "properties": {
+                "auth_config": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "auto_enable_rules": {
+                    "type": "boolean"
+                },
+                "branch": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "exclude_paths": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "exclude_tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "id": {
+                    "description": "Feed configuration fields",
+                    "type": "string"
+                },
+                "include_paths": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "include_tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "min_severity": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "template_id": {
+                    "description": "Template-based creation",
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "update_schedule": {
+                    "type": "string"
+                },
+                "update_strategy": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.CreateInvestigationFromAlertRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "description": "Optional: auto-generated as \"Investigation created from alert [alertID]\"",
+                    "type": "string"
+                },
+                "priority": {
+                    "description": "Optional: auto-mapped from alert severity",
+                    "type": "string"
+                },
+                "title": {
+                    "description": "Optional: auto-generated as \"Investigation: [RuleName]\"",
+                    "type": "string"
+                }
+            }
+        },
+        "api.CreateInvestigationFromAlertResponse": {
+            "type": "object",
+            "properties": {
+                "alertId": {
+                    "type": "string"
+                },
+                "investigation": {
+                    "$ref": "#/definitions/core.Investigation"
+                },
+                "linkedAt": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "warnings": {
+                    "description": "TASK 145.2: Return warnings for non-fatal issues (e.g., MITRE truncation)",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.CreateInvestigationRequest": {
+            "type": "object",
+            "required": [
+                "priority",
+                "title"
+            ],
+            "properties": {
+                "alert_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "assignee_id": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "priority": {
+                    "$ref": "#/definitions/core.InvestigationPriority"
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "minLength": 1
+                }
+            }
+        },
+        "api.DatabaseInfo": {
+            "type": "object",
+            "properties": {
+                "clickhouse_version": {
+                    "type": "string"
+                },
+                "sqlite_wal_mode": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.ErrorRateStats": {
+            "type": "object",
+            "properties": {
+                "cache_errors_percent": {
+                    "type": "number"
+                },
+                "detection_errors_percent": {
+                    "type": "number"
+                },
+                "training_errors_percent": {
+                    "type": "number"
+                }
+            }
+        },
+        "api.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.EventResult": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "event_id": {
+                    "type": "string"
+                },
+                "event_index": {
+                    "type": "integer"
+                },
+                "matched": {
+                    "type": "boolean"
+                },
+                "time_ms": {
+                    "type": "number"
+                }
+            }
+        },
+        "api.FeedResponse": {
+            "type": "object",
+            "properties": {
+                "feed": {
+                    "$ref": "#/definitions/feeds.RuleFeed"
+                }
+            }
+        },
+        "api.FeedsListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/feeds.RuleFeed"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.FeedsSummaryResponse": {
+            "type": "object",
+            "properties": {
+                "active_feeds": {
+                    "type": "integer"
+                },
+                "error_count": {
+                    "type": "integer"
+                },
+                "health_status": {
+                    "type": "string"
+                },
+                "last_sync": {
+                    "description": "null if no feeds have synced",
+                    "type": "string"
+                },
+                "total_feeds": {
+                    "type": "integer"
+                },
+                "total_rules": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.FirstRunResponse": {
+            "type": "object",
+            "properties": {
+                "is_first_run": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "api.GetRemediationActionsResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.RemediationActionRecord"
+                    }
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "api.HealthCheck": {
+            "type": "object",
+            "properties": {
+                "details": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "\"pass\", \"fail\", \"warn\"",
+                    "type": "string"
+                },
+                "time": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.HealthDetailedResponse": {
+            "type": "object",
+            "properties": {
+                "components": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/api.ComponentHealth"
+                    }
+                },
+                "database": {
+                    "$ref": "#/definitions/api.DatabaseInfo"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "system": {
+                    "$ref": "#/definitions/api.SystemInfo"
+                },
+                "time": {
+                    "type": "string"
+                },
+                "uptime": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.HealthReadyResponse": {
+            "type": "object",
+            "properties": {
+                "components": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/api.ComponentHealth"
+                    }
+                },
+                "status": {
+                    "description": "\"ready\" or \"not_ready\"",
+                    "type": "string"
+                },
+                "time": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.HuntIOCsRequest": {
+            "type": "object",
+            "properties": {
+                "alertId": {
+                    "description": "Optional: for context",
+                    "type": "string"
+                },
+                "iocs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.IOCEntry"
+                    }
+                }
+            }
+        },
+        "api.HuntIOCsResponse": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "huntId": {
+                    "type": "string"
+                },
+                "iocCount": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "api.IOCEntry": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "description": "ip, domain, hash, url",
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.ImportResponse": {
+            "type": "object",
+            "properties": {
+                "failed": {
+                    "type": "integer"
+                },
+                "imported": {
+                    "type": "integer"
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.ImportResult"
+                    }
+                },
+                "skipped": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "updated": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.ImportResult": {
+            "type": "object",
+            "properties": {
+                "filename": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "rule_id": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "imported|updated|skipped|failed",
+                    "type": "string"
+                }
+            }
+        },
+        "api.LatencyStats": {
+            "type": "object",
+            "properties": {
+                "average": {
+                    "$ref": "#/definitions/time.Duration"
+                },
+                "max": {
+                    "$ref": "#/definitions/time.Duration"
+                },
+                "p95": {
+                    "$ref": "#/definitions/time.Duration"
+                },
+                "p99": {
+                    "$ref": "#/definitions/time.Duration"
+                }
+            }
+        },
+        "api.LinkInvestigationRequest": {
+            "type": "object",
+            "required": [
+                "investigationId"
+            ],
+            "properties": {
+                "investigationId": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.LinkInvestigationResponse": {
+            "type": "object",
+            "properties": {
+                "alertId": {
+                    "type": "string"
+                },
+                "investigationId": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "previousInvestigationId": {
+                    "type": "string"
+                },
+                "warnings": {
+                    "description": "TASK 107: Partial failure warnings",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.ListenerTemplate": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "config": {
+                    "$ref": "#/definitions/storage.DynamicListener"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.MLAPIConfig": {
+            "type": "object",
+            "properties": {
+                "algorithms": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "batch_size": {
+                    "type": "integer"
+                },
+                "drift_detection": {
+                    "type": "boolean"
+                },
+                "enable_continuous": {
+                    "type": "boolean"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "min_confidence": {
+                    "type": "number"
+                },
+                "retrain_threshold": {
+                    "type": "integer"
+                },
+                "training_interval": {
+                    "type": "string"
+                },
+                "validation_ratio": {
+                    "type": "number"
+                },
+                "voting_strategy": {
+                    "type": "string"
+                },
+                "weights": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "number",
+                        "format": "float64"
+                    }
+                }
+            }
+        },
+        "api.MLDetailedHealthResponse": {
+            "type": "object",
+            "properties": {
+                "checks": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/api.HealthCheck"
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "performance_metrics": {
+                    "$ref": "#/definitions/api.MLPerformanceMetrics"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "system_resources": {
+                    "$ref": "#/definitions/api.MLSystemResources"
+                },
+                "timestamp": {
+                    "type": "string"
+                },
+                "uptime": {
+                    "$ref": "#/definitions/time.Duration"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.MLPerformanceMetrics": {
+            "type": "object",
+            "properties": {
+                "detection_latency": {
+                    "$ref": "#/definitions/api.LatencyStats"
+                },
+                "error_rates": {
+                    "$ref": "#/definitions/api.ErrorRateStats"
+                },
+                "memory_usage": {
+                    "$ref": "#/definitions/api.MemoryStats"
+                },
+                "throughput": {
+                    "$ref": "#/definitions/api.ThroughputStats"
+                },
+                "training_duration": {
+                    "$ref": "#/definitions/api.LatencyStats"
+                }
+            }
+        },
+        "api.MLStatusResponse": {
+            "type": "object",
+            "properties": {
+                "buffer_size": {
+                    "type": "integer"
+                },
+                "config": {
+                    "$ref": "#/definitions/api.MLAPIConfig"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "is_running": {
+                    "type": "boolean"
+                },
+                "last_training": {
+                    "type": "string"
+                },
+                "performance_history": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ml.TrainingPerformance"
+                    }
+                },
+                "sample_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.MLSystemResources": {
+            "type": "object",
+            "properties": {
+                "active_goroutines": {
+                    "type": "integer"
+                },
+                "cpu_usage_percent": {
+                    "type": "number"
+                },
+                "disk_usage_percent": {
+                    "type": "number"
+                },
+                "memory_usage_percent": {
+                    "type": "number"
+                }
+            }
+        },
+        "api.MemoryStats": {
+            "type": "object",
+            "properties": {
+                "available_mb": {
+                    "type": "number"
+                },
+                "used_mb": {
+                    "type": "number"
+                },
+                "utilization_percent": {
+                    "type": "number"
+                }
+            }
+        },
+        "api.MigrateCQLRequest": {
+            "type": "object",
+            "properties": {
+                "all": {
+                    "description": "Migrate all CQL rules",
+                    "type": "boolean"
+                },
+                "dry_run": {
+                    "description": "Preview without saving",
+                    "type": "boolean"
+                },
+                "preserve_original": {
+                    "description": "Keep original CQL rules as disabled",
+                    "type": "boolean"
+                },
+                "rule_ids": {
+                    "description": "Specific rule IDs to migrate (empty for all)",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.MigrateCQLResponse": {
+            "type": "object",
+            "properties": {
+                "failed": {
+                    "type": "integer"
+                },
+                "migrated": {
+                    "type": "integer"
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.MigrationResult"
+                    }
+                },
+                "skipped": {
+                    "type": "integer"
+                },
+                "total_rules": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.MigrationResult": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "rule_id": {
+                    "type": "string"
+                },
+                "rule_name": {
+                    "type": "string"
+                },
+                "sigma_yaml": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.PaginationResponse": {
+            "type": "object",
+            "properties": {
+                "items": {},
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.ParsedEvents": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/cerberus_core.Event"
+                    }
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.PlaybookExecutionRequest": {
+            "type": "object",
+            "required": [
+                "alert_id"
+            ],
+            "properties": {
+                "alert_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.PlaybookExecutionResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "execution_id": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "step_results": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/soar.ActionResult"
+                    }
+                }
+            }
+        },
+        "api.PlaybookValidationResponse": {
+            "type": "object",
+            "properties": {
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "valid": {
+                    "type": "boolean"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.QueryValidationResponse": {
+            "type": "object",
+            "properties": {
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "valid": {
+                    "type": "boolean"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.RemediationActionRecord": {
+            "type": "object",
+            "properties": {
+                "actionId": {
+                    "type": "string"
+                },
+                "actionType": {
+                    "description": "block-ip, unblock-ip, hunt-iocs",
+                    "type": "string"
+                },
+                "alertId": {
+                    "type": "string"
+                },
+                "completedAt": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "requestedAt": {
+                    "type": "string"
+                },
+                "requestedBy": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "pending, completed, failed",
+                    "type": "string"
+                },
+                "target": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.RemediationError": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.RestoreRuleRequest": {
+            "type": "object",
+            "properties": {
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.RestoreRuleResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "properties": {
+                        "content": {
+                            "type": "string"
+                        },
+                        "id": {
+                            "type": "string"
+                        },
+                        "restoredAt": {
+                            "type": "string"
+                        },
+                        "restoredFromVersion": {
+                            "type": "integer"
+                        },
+                        "title": {
+                            "type": "string"
+                        },
+                        "version": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "api.RuleReference": {
+            "type": "object",
+            "properties": {
+                "rule_id": {
+                    "type": "string"
+                },
+                "rule_name": {
+                    "type": "string"
+                },
+                "rule_severity": {
+                    "type": "string"
+                },
+                "source": {
+                    "description": "\"mongodb\" or \"sigma_feed\"",
+                    "type": "string"
+                }
+            }
+        },
+        "api.RuleTestRequest": {
+            "type": "object",
+            "required": [
+                "events"
+            ],
+            "properties": {
+                "events": {
+                    "description": "Sample events to test",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/cerberus_core.Event"
+                    }
+                },
+                "expect_correlation": {
+                    "type": "boolean"
+                },
+                "expect_match": {
+                    "description": "Expected match outcome",
+                    "type": "boolean"
+                },
+                "rule": {
+                    "description": "Inline rule definition",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.Rule"
+                        }
+                    ]
+                },
+                "rule_id": {
+                    "description": "Or load existing rule by ID",
+                    "type": "string"
+                }
+            }
+        },
+        "api.RuleTestResponse": {
+            "type": "object",
+            "properties": {
+                "correlation_state": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "correlation_triggered": {
+                    "type": "boolean"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "evaluation_time_ms": {
+                    "type": "number"
+                },
+                "execution_time_ms": {
+                    "description": "Alias for EvaluationTimeMs",
+                    "type": "number"
+                },
+                "match_count": {
+                    "type": "integer"
+                },
+                "matched": {
+                    "type": "boolean"
+                },
+                "matched_events": {
+                    "description": "Indices of matched events",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "matches": {
+                    "description": "Legacy fields for backwards compatibility",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/detect.MatchResult"
+                    }
+                },
+                "total_events": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.RuleVersionEntry": {
+            "type": "object",
+            "properties": {
+                "author": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.RuleVersionsResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.RuleVersionEntry"
+                    }
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "api.SearchRequest": {
+            "type": "object",
+            "required": [
+                "query"
+            ],
+            "properties": {
+                "end_time": {
+                    "type": "string"
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "offset": {
+                    "type": "integer"
+                },
+                "order_by": {
+                    "type": "string"
+                },
+                "order_direction": {
+                    "type": "string"
+                },
+                "query": {
+                    "type": "string"
+                },
+                "start_time": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.SearchResponse": {
+            "type": "object",
+            "properties": {
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/cerberus_core.Event"
+                    }
+                },
+                "has_more": {
+                    "type": "boolean"
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "offset": {
+                    "type": "integer"
+                },
+                "stats": {
+                    "$ref": "#/definitions/api.SearchStats"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.SearchStats": {
+            "type": "object",
+            "properties": {
+                "execution_time_ms": {
+                    "$ref": "#/definitions/time.Duration"
+                },
+                "query": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.SetupCompleteRequest": {
+            "type": "object",
+            "properties": {
+                "skipped_wizard": {
+                    "description": "SkippedWizard indicates if the user skipped the setup wizard",
+                    "type": "boolean"
+                }
+            }
+        },
+        "api.SetupCompleteResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "api.SyncStatusResponse": {
+            "type": "object",
+            "properties": {
+                "feed_id": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "status_url": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.SystemInfo": {
+            "type": "object",
+            "properties": {
+                "cpu_cores": {
+                    "type": "integer"
+                },
+                "goroutines": {
+                    "type": "integer"
+                },
+                "heap_alloc": {
+                    "type": "string"
+                },
+                "heap_sys": {
+                    "type": "string"
+                },
+                "num_gc": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.TacticAnalytics": {
+            "type": "object",
+            "properties": {
+                "alert_count_30d": {
+                    "type": "integer"
+                },
+                "coverage_percent": {
+                    "type": "number"
+                },
+                "covered_techniques": {
+                    "type": "integer"
+                },
+                "gap_count": {
+                    "type": "integer"
+                },
+                "rule_count": {
+                    "type": "integer"
+                },
+                "tactic_id": {
+                    "type": "string"
+                },
+                "tactic_name": {
+                    "type": "string"
+                },
+                "total_techniques": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.ThroughputStats": {
+            "type": "object",
+            "properties": {
+                "average_per_second": {
+                    "type": "number"
+                },
+                "current_per_second": {
+                    "type": "number"
+                },
+                "peak_per_second": {
+                    "type": "number"
+                }
+            }
+        },
+        "api.UnblockIPRequest": {
+            "type": "object",
+            "properties": {
+                "alertId": {
+                    "description": "Optional: for audit trail",
+                    "type": "string"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "reason": {
+                    "description": "Optional",
+                    "type": "string"
+                }
+            }
+        },
+        "api.UnblockIPResponse": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                },
+                "target": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.UpdateAssigneeRequest": {
+            "type": "object",
+            "properties": {
+                "assigneeId": {
+                    "description": "Pointer for null support (unassign)",
+                    "type": "string"
+                }
+            }
+        },
+        "api.UpdateAssigneeResponse": {
+            "type": "object",
+            "properties": {
+                "assignedTo": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "previousAssignee": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.UpdateDispositionRequest": {
+            "type": "object",
+            "required": [
+                "disposition"
+            ],
+            "properties": {
+                "disposition": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.UpdateDispositionResponse": {
+            "type": "object",
+            "properties": {
+                "disposition": {
+                    "type": "string"
+                },
+                "dispositionReason": {
+                    "type": "string"
+                },
+                "dispositionSetAt": {
+                    "type": "string"
+                },
+                "dispositionSetBy": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.UpdateFeedRequest": {
+            "type": "object",
+            "properties": {
+                "auth_config": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "auto_enable_rules": {
+                    "type": "boolean"
+                },
+                "branch": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "exclude_paths": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "exclude_tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "include_paths": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "include_tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "min_severity": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                },
+                "update_schedule": {
+                    "type": "string"
+                },
+                "update_strategy": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.UpdateInvestigationRequest": {
+            "type": "object",
+            "properties": {
+                "assignee_id": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "priority": {
+                    "$ref": "#/definitions/core.InvestigationPriority"
+                },
+                "status": {
+                    "$ref": "#/definitions/core.InvestigationStatus"
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "minLength": 1
+                }
+            }
+        },
+        "api.ValidateRequest": {
+            "type": "object",
+            "properties": {
+                "sigma_yaml": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.ValidateResponse": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "description": "Detected category: detection|correlation",
+                    "type": "string"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "valid": {
+                    "type": "boolean"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "cerberus_core.Event": {
             "type": "object",
             "properties": {
@@ -975,13 +11319,26 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": true
                 },
+                "ingested_at": {
+                    "type": "string"
+                },
+                "listener_id": {
+                    "type": "string"
+                },
+                "listener_name": {
+                    "type": "string"
+                },
                 "raw_data": {
+                    "description": "RawData stores the original raw event data. Using json.RawMessage prevents\ndouble-encoding when the event is serialized to JSON for API responses.\nFor JSON events, this contains valid JSON that should be embedded as-is.\nFor non-JSON events (syslog, CEF), this contains the raw string.",
                     "type": "string",
-                    "example": "raw log data"
+                    "example": "{\"key\":\"value\"}"
                 },
                 "severity": {
                     "type": "string",
                     "example": "info"
+                },
+                "source": {
+                    "type": "string"
                 },
                 "source_format": {
                     "type": "string",
@@ -1003,6 +11360,9 @@ const docTemplate = `{
                 "config": {
                     "type": "object"
                 },
+                "created_at": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string",
                     "example": "action-123"
@@ -1011,6 +11371,9 @@ const docTemplate = `{
                     "description": "webhook, jira, etc.",
                     "type": "string",
                     "example": "webhook"
+                },
+                "updated_at": {
+                    "type": "string"
                 }
             }
         },
@@ -1021,6 +11384,53 @@ const docTemplate = `{
                     "type": "string",
                     "example": "alert-123"
                 },
+                "assigned_to": {
+                    "type": "string"
+                },
+                "category": {
+                    "description": "Alert Info Modal - Overview metadata fields\nCategory represents the alert classification (e.g., malware, phishing, intrusion, data_exfiltration)",
+                    "type": "string",
+                    "example": "intrusion"
+                },
+                "confidence_score": {
+                    "description": "ConfidenceScore indicates detection confidence as percentage (0-100)",
+                    "type": "number",
+                    "example": 85.5
+                },
+                "correlated_alert_ids": {
+                    "description": "Correlation tracking fields\nFor correlation alerts: IDs of the contributing alerts that triggered this correlation",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "correlation_rule_id": {
+                    "description": "For contributing alerts: which correlation rule(s) this alert contributed to",
+                    "type": "string"
+                },
+                "disposition": {
+                    "description": "TASK 102: Disposition workflow fields for analyst verdict",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.AlertDisposition"
+                        }
+                    ],
+                    "example": "undetermined"
+                },
+                "disposition_reason": {
+                    "type": "string",
+                    "example": "Confirmed malicious activity"
+                },
+                "disposition_set_at": {
+                    "type": "string"
+                },
+                "disposition_set_by": {
+                    "type": "string",
+                    "example": "analyst@company.com"
+                },
+                "duplicate_count": {
+                    "type": "integer"
+                },
                 "event": {
                     "$ref": "#/definitions/cerberus_core.Event"
                 },
@@ -1028,17 +11438,69 @@ const docTemplate = `{
                     "type": "string",
                     "example": "event-456"
                 },
+                "event_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "fingerprint": {
+                    "type": "string"
+                },
+                "investigation_id": {
+                    "type": "string",
+                    "example": "inv-789"
+                },
                 "jira_ticket_id": {
                     "type": "string",
                     "example": "PROJ-123"
+                },
+                "last_seen": {
+                    "type": "string"
+                },
+                "mitre_techniques": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "occurrence_count": {
+                    "description": "OccurrenceCount tracks how many times this alert pattern has triggered (for aggregated alerts)",
+                    "type": "integer",
+                    "example": 3
+                },
+                "risk_score": {
+                    "description": "RiskScore is the calculated risk level (0-100) based on asset criticality, severity, threat intel",
+                    "type": "integer",
+                    "example": 75
+                },
+                "rule_description": {
+                    "type": "string"
                 },
                 "rule_id": {
                     "type": "string",
                     "example": "failed_login"
                 },
+                "rule_name": {
+                    "type": "string"
+                },
+                "rule_type": {
+                    "description": "sigma, correlation, cql, ml",
+                    "type": "string"
+                },
                 "severity": {
                     "type": "string",
                     "example": "Warning"
+                },
+                "sla_breached": {
+                    "description": "SLABreached indicates whether the response SLA was violated",
+                    "type": "boolean",
+                    "example": false
+                },
+                "source": {
+                    "description": "Source identifies the system that generated the alert (e.g., Windows Security, Splunk, Sysmon)",
+                    "type": "string",
+                    "example": "Windows Security"
                 },
                 "status": {
                     "description": "Pending, Acknowledged, Dismissed",
@@ -1049,9 +11511,119 @@ const docTemplate = `{
                     ],
                     "example": "Pending"
                 },
+                "threat_intel": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
                 "timestamp": {
                     "type": "string",
                     "example": "2023-10-31T12:00:00Z"
+                }
+            }
+        },
+        "core.AlertBrief": {
+            "type": "object",
+            "properties": {
+                "alert_id": {
+                    "type": "string"
+                },
+                "rule_id": {
+                    "type": "string"
+                },
+                "rule_name": {
+                    "type": "string"
+                },
+                "severity": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                }
+            }
+        },
+        "core.AlertDisposition": {
+            "type": "string",
+            "enum": [
+                "undetermined",
+                "true_positive",
+                "false_positive",
+                "benign",
+                "suspicious",
+                "inconclusive"
+            ],
+            "x-enum-varnames": [
+                "DispositionUndetermined",
+                "DispositionTruePositive",
+                "DispositionFalsePositive",
+                "DispositionBenign",
+                "DispositionSuspicious",
+                "DispositionInconclusive"
+            ]
+        },
+        "core.AlertLink": {
+            "type": "object",
+            "properties": {
+                "alert_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "link_type": {
+                    "description": "e.g., \"related\", \"duplicate\", \"escalation\"",
+                    "type": "string"
+                },
+                "linked_alert_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "core.AlertLinkRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "link_type": {
+                    "type": "string"
+                },
+                "linked_alert_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "core.AlertLinkResponse": {
+            "type": "object",
+            "properties": {
+                "alert_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "link_type": {
+                    "type": "string"
+                },
+                "linked_alert": {
+                    "$ref": "#/definitions/core.AlertBrief"
                 }
             }
         },
@@ -1060,36 +11632,23 @@ const docTemplate = `{
             "enum": [
                 "Pending",
                 "Acknowledged",
-                "Dismissed"
+                "Investigating",
+                "Resolved",
+                "Escalated",
+                "Closed",
+                "Dismissed",
+                "FalsePositive"
             ],
             "x-enum-varnames": [
                 "AlertStatusPending",
                 "AlertStatusAcknowledged",
-                "AlertStatusDismissed"
+                "AlertStatusInvestigating",
+                "AlertStatusResolved",
+                "AlertStatusEscalated",
+                "AlertStatusClosed",
+                "AlertStatusDismissed",
+                "AlertStatusFalsePositive"
             ]
-        },
-        "core.Condition": {
-            "type": "object",
-            "properties": {
-                "field": {
-                    "type": "string",
-                    "example": "fields.status"
-                },
-                "logic": {
-                    "description": "AND, OR (for combining conditions)",
-                    "type": "string",
-                    "example": "AND"
-                },
-                "operator": {
-                    "description": "equals, not_equals, contains, starts_with, ends_with, regex, greater_than, less_than, greater_than_or_equal, less_than_or_equal",
-                    "type": "string",
-                    "example": "equals"
-                },
-                "value": {
-                    "type": "string",
-                    "example": "failure"
-                }
-            }
         },
         "core.CorrelationRule": {
             "type": "object",
@@ -1100,11 +11659,8 @@ const docTemplate = `{
                         "$ref": "#/definitions/core.Action"
                     }
                 },
-                "conditions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/core.Condition"
-                    }
+                "created_at": {
+                    "type": "string"
                 },
                 "description": {
                     "type": "string",
@@ -1119,7 +11675,7 @@ const docTemplate = `{
                     "example": "Brute Force Detection"
                 },
                 "sequence": {
-                    "description": "sequence of event types",
+                    "description": "TASK #184: Conditions field removed - use SIGMA correlation syntax instead",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -1134,6 +11690,9 @@ const docTemplate = `{
                     "type": "string",
                     "example": "High"
                 },
+                "updated_at": {
+                    "type": "string"
+                },
                 "version": {
                     "type": "integer",
                     "example": 1
@@ -1145,20 +11704,388 @@ const docTemplate = `{
                 }
             }
         },
+        "core.Evidence": {
+            "type": "object",
+            "properties": {
+                "alert_id": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "filename": {
+                    "description": "Internal stored filename (UUID)",
+                    "type": "string"
+                },
+                "hash": {
+                    "description": "SHA-256 hash of file content",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "investigation_id": {
+                    "type": "string"
+                },
+                "mime_type": {
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Original filename for display",
+                    "type": "string"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "type": {
+                    "$ref": "#/definitions/core.EvidenceType"
+                },
+                "uploaded_at": {
+                    "type": "string"
+                },
+                "uploaded_by": {
+                    "description": "Full user reference for API responses",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.UserRef"
+                        }
+                    ]
+                },
+                "uploaded_by_id": {
+                    "description": "User ID who uploaded",
+                    "type": "string"
+                }
+            }
+        },
+        "core.EvidenceType": {
+            "type": "string",
+            "enum": [
+                "log",
+                "file",
+                "screenshot",
+                "network_capture",
+                "process_dump",
+                "other"
+            ],
+            "x-enum-varnames": [
+                "EvidenceTypeLog",
+                "EvidenceTypeFile",
+                "EvidenceTypeScreenshot",
+                "EvidenceTypeNetworkCapture",
+                "EvidenceTypeProcessDump",
+                "EvidenceTypeOther"
+            ]
+        },
+        "core.Investigation": {
+            "type": "object",
+            "required": [
+                "priority",
+                "status",
+                "title"
+            ],
+            "properties": {
+                "affected_assets": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "alert_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "alert-001",
+                        "alert-002"
+                    ]
+                },
+                "artifacts": {
+                    "$ref": "#/definitions/core.InvestigationArtifacts"
+                },
+                "assignee_id": {
+                    "type": "string",
+                    "example": "user123"
+                },
+                "closed_at": {
+                    "type": "string"
+                },
+                "correlation_rule_id": {
+                    "description": "CorrelationRuleID is the ID of the correlation rule that triggered this investigation",
+                    "type": "string",
+                    "example": "corr-rule-001"
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2025-01-08T10:23:00Z"
+                },
+                "created_by": {
+                    "type": "string",
+                    "example": "user123"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "example": "Multiple failed login attempts followed by successful authentication"
+                },
+                "event_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "event-001",
+                        "event-002"
+                    ]
+                },
+                "investigation_id": {
+                    "type": "string",
+                    "example": "INV-20250108-0042"
+                },
+                "mitre_tactics": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "TA0001",
+                        "TA0006"
+                    ]
+                },
+                "mitre_techniques": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "T1078",
+                        "T1110"
+                    ]
+                },
+                "ml_feedback": {
+                    "$ref": "#/definitions/core.MLFeedback"
+                },
+                "notes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.InvestigationNote"
+                    }
+                },
+                "priority": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.InvestigationPriority"
+                        }
+                    ],
+                    "example": "critical"
+                },
+                "resolution_category": {
+                    "type": "string",
+                    "example": "incident_contained"
+                },
+                "status": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.InvestigationStatus"
+                        }
+                    ],
+                    "example": "in_progress"
+                },
+                "summary": {
+                    "type": "string",
+                    "maxLength": 5000
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "example": "Suspected Lateral Movement"
+                },
+                "trigger_alert_id": {
+                    "description": "TriggerAlertID is the ID of the correlation alert that spawned this investigation (when TriggerSource is \"correlation\")",
+                    "type": "string",
+                    "example": "alert-corr-001"
+                },
+                "trigger_source": {
+                    "description": "Correlation trigger fields - track how investigation was created\nTriggerSource indicates how this investigation was created (\"manual\", \"correlation\", \"playbook\", \"ml_alert\")",
+                    "type": "string",
+                    "example": "correlation"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2025-01-08T15:05:00Z"
+                },
+                "verdict": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.InvestigationVerdict"
+                        }
+                    ],
+                    "example": "true_positive"
+                }
+            }
+        },
+        "core.InvestigationArtifacts": {
+            "type": "object",
+            "properties": {
+                "files": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "hashes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "hosts": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "ips": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "processes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "core.InvestigationNote": {
+            "type": "object",
+            "properties": {
+                "analyst_id": {
+                    "type": "string"
+                },
+                "content": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                }
+            }
+        },
+        "core.InvestigationPriority": {
+            "type": "string",
+            "enum": [
+                "critical",
+                "high",
+                "medium",
+                "low"
+            ],
+            "x-enum-varnames": [
+                "InvestigationPriorityCritical",
+                "InvestigationPriorityHigh",
+                "InvestigationPriorityMedium",
+                "InvestigationPriorityLow"
+            ]
+        },
+        "core.InvestigationStatus": {
+            "type": "string",
+            "enum": [
+                "open",
+                "in_progress",
+                "in_progress",
+                "awaiting_review",
+                "closed",
+                "resolved",
+                "false_positive"
+            ],
+            "x-enum-comments": {
+                "InvestigationStatusInvestigating": "TASK 51.4: Alias for InProgress for backward compatibility"
+            },
+            "x-enum-descriptions": [
+                "",
+                "",
+                "TASK 51.4: Alias for InProgress for backward compatibility",
+                "",
+                "",
+                "",
+                ""
+            ],
+            "x-enum-varnames": [
+                "InvestigationStatusOpen",
+                "InvestigationStatusInProgress",
+                "InvestigationStatusInvestigating",
+                "InvestigationStatusAwaitingReview",
+                "InvestigationStatusClosed",
+                "InvestigationStatusResolved",
+                "InvestigationStatusFalsePositive"
+            ]
+        },
+        "core.InvestigationVerdict": {
+            "type": "string",
+            "enum": [
+                "true_positive",
+                "false_positive",
+                "inconclusive"
+            ],
+            "x-enum-varnames": [
+                "InvestigationVerdictTruePositive",
+                "InvestigationVerdictFalsePositive",
+                "InvestigationVerdictInconclusive"
+            ]
+        },
+        "core.MLFeedback": {
+            "type": "object",
+            "properties": {
+                "ml_helpfulness": {
+                    "description": "very_helpful, somewhat, not_helpful",
+                    "type": "string"
+                },
+                "ml_quality_rating": {
+                    "description": "1-5 stars",
+                    "type": "integer"
+                },
+                "use_for_training": {
+                    "type": "boolean"
+                }
+            }
+        },
         "core.Rule": {
             "type": "object",
             "properties": {
                 "actions": {
+                    "description": "TASK #184: Conditions field removed - SIGMA rules use SigmaYAML for detection",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/core.Action"
                     }
                 },
-                "conditions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/core.Condition"
-                    }
+                "author": {
+                    "type": "string"
+                },
+                "correlation": {
+                    "description": "Correlation config",
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "created_at": {
+                    "type": "string"
                 },
                 "description": {
                     "type": "string",
@@ -1168,43 +12095,1493 @@ const docTemplate = `{
                     "type": "boolean",
                     "example": true
                 },
+                "false_positives": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "id": {
                     "type": "string",
                     "example": "failed_login"
+                },
+                "logsource_category": {
+                    "description": "Denormalized logsource fields for efficient querying and filtering of SIGMA rules\nLogsourceCategory represents the general category of logs (e.g., \"process_creation\", \"network_connection\")",
+                    "type": "string"
+                },
+                "logsource_product": {
+                    "description": "LogsourceProduct represents the product generating the logs (e.g., \"windows\", \"linux\", \"azure\")",
+                    "type": "string"
+                },
+                "logsource_service": {
+                    "description": "LogsourceService represents the specific service within the product (e.g., \"sysmon\", \"security\", \"application\")",
+                    "type": "string"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "mitre_tactics": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "mitre_techniques": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "name": {
                     "type": "string",
                     "example": "Failed User Login"
                 },
+                "query": {
+                    "description": "CQL query string",
+                    "type": "string"
+                },
+                "references": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "severity": {
                     "type": "string",
                     "example": "Warning"
+                },
+                "sigma_yaml": {
+                    "description": "TASK #184: Detection and Logsource fields removed - use SigmaYAML instead\nSigmaYAML contains the complete SIGMA rule in YAML format for SIGMA-type rules",
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "type": {
+                    "description": "'sigma' or 'cql'",
+                    "type": "string",
+                    "example": "sigma"
+                },
+                "updated_at": {
+                    "type": "string"
                 },
                 "version": {
                     "type": "integer",
                     "example": 1
                 }
             }
-        }
-    },
-    "securityDefinitions": {
-        "ApiKeyAuth": {
-            "description": "Enter your API key",
-            "type": "apiKey",
-            "name": "Authorization",
-            "in": "header"
+        },
+        "core.StatusChange": {
+            "type": "object",
+            "properties": {
+                "alert_id": {
+                    "type": "string"
+                },
+                "changed_at": {
+                    "type": "string"
+                },
+                "changed_by": {
+                    "type": "string"
+                },
+                "from_status": {
+                    "$ref": "#/definitions/core.AlertStatus"
+                },
+                "note": {
+                    "type": "string"
+                },
+                "to_status": {
+                    "$ref": "#/definitions/core.AlertStatus"
+                }
+            }
+        },
+        "core.UserRef": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                }
+            }
+        },
+        "detect.ConditionFailure": {
+            "type": "object",
+            "properties": {
+                "actual": {
+                    "type": "string"
+                },
+                "condition": {
+                    "type": "string"
+                },
+                "expected": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "detect.MatchResult": {
+            "type": "object",
+            "properties": {
+                "event": {
+                    "$ref": "#/definitions/cerberus_core.Event"
+                },
+                "explanation": {
+                    "type": "string"
+                },
+                "failed_conditions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/detect.ConditionFailure"
+                    }
+                },
+                "matched": {
+                    "type": "boolean"
+                },
+                "matched_conditions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "feeds.FeedStats": {
+            "type": "object",
+            "properties": {
+                "failed_rules": {
+                    "type": "integer"
+                },
+                "imported_rules": {
+                    "type": "integer"
+                },
+                "last_error": {
+                    "type": "string"
+                },
+                "last_sync_duration": {
+                    "description": "seconds",
+                    "type": "number"
+                },
+                "skipped_rules": {
+                    "type": "integer"
+                },
+                "sync_count": {
+                    "type": "integer"
+                },
+                "total_rules": {
+                    "type": "integer"
+                },
+                "updated_rules": {
+                    "type": "integer"
+                }
+            }
+        },
+        "feeds.FeedSyncResult": {
+            "type": "object",
+            "properties": {
+                "duration": {
+                    "type": "number"
+                },
+                "end_time": {
+                    "type": "string"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "feed_id": {
+                    "type": "string"
+                },
+                "feed_name": {
+                    "type": "string"
+                },
+                "rule_results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/feeds.RuleImportResult"
+                    }
+                },
+                "start_time": {
+                    "type": "string"
+                },
+                "stats": {
+                    "$ref": "#/definitions/feeds.FeedStats"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "feeds.FeedTemplate": {
+            "type": "object",
+            "properties": {
+                "branch": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "estimated_rule_count": {
+                    "type": "integer"
+                },
+                "exclude_paths": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "include_paths": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "recommended_priority": {
+                    "type": "integer"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "feeds.RuleFeed": {
+            "type": "object",
+            "properties": {
+                "auth_config": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "auto_enable_rules": {
+                    "type": "boolean"
+                },
+                "branch": {
+                    "description": "For git",
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "exclude_paths": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "exclude_tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "include_paths": {
+                    "description": "Import configuration",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "include_tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "last_sync": {
+                    "type": "string"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "min_severity": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "next_sync": {
+                    "type": "string"
+                },
+                "path": {
+                    "description": "For filesystem",
+                    "type": "string"
+                },
+                "priority": {
+                    "description": "Higher = takes precedence",
+                    "type": "integer"
+                },
+                "stats": {
+                    "description": "Statistics",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/feeds.FeedStats"
+                        }
+                    ]
+                },
+                "status": {
+                    "type": "string"
+                },
+                "tags": {
+                    "description": "Metadata",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "type": {
+                    "description": "git, http, filesystem, api",
+                    "type": "string"
+                },
+                "update_schedule": {
+                    "description": "Cron format",
+                    "type": "string"
+                },
+                "update_strategy": {
+                    "description": "Update strategy",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "url": {
+                    "description": "Connection details",
+                    "type": "string"
+                }
+            }
+        },
+        "feeds.RuleImportResult": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "description": "imported, updated, skipped, failed",
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "file_path": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "rule_id": {
+                    "type": "string"
+                },
+                "rule_title": {
+                    "type": "string"
+                }
+            }
+        },
+        "ingest.DLQEvent": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "errorDetails": {
+                    "type": "string"
+                },
+                "errorReason": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "listenerID": {
+                    "type": "string"
+                },
+                "protocol": {
+                    "type": "string"
+                },
+                "rawEvent": {
+                    "type": "string"
+                },
+                "retries": {
+                    "type": "integer"
+                },
+                "sourceIP": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "'pending', 'replayed', 'discarded'",
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                }
+            }
+        },
+        "mitre.DataSource": {
+            "type": "object",
+            "properties": {
+                "created": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "external_references": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/mitre.ExternalReference"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "modified": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "spec_version": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "x_mitre_collection_layers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "x_mitre_domains": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "x_mitre_platforms": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "x_mitre_version": {
+                    "type": "string"
+                }
+            }
+        },
+        "mitre.ExternalReference": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "external_id": {
+                    "type": "string"
+                },
+                "source_name": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "mitre.KillChainPhase": {
+            "type": "object",
+            "properties": {
+                "kill_chain_name": {
+                    "type": "string"
+                },
+                "phase_name": {
+                    "description": "This is the tactic name",
+                    "type": "string"
+                }
+            }
+        },
+        "mitre.Tactic": {
+            "type": "object",
+            "properties": {
+                "created": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "external_references": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/mitre.ExternalReference"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "modified": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "spec_version": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "x_mitre_deprecated": {
+                    "type": "boolean"
+                },
+                "x_mitre_domains": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "x_mitre_shortname": {
+                    "type": "string"
+                },
+                "x_mitre_version": {
+                    "type": "string"
+                }
+            }
+        },
+        "mitre.Technique": {
+            "type": "object",
+            "properties": {
+                "created": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "external_references": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/mitre.ExternalReference"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "kill_chain_phases": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/mitre.KillChainPhase"
+                    }
+                },
+                "modified": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "revoked": {
+                    "type": "boolean"
+                },
+                "spec_version": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "x_mitre_data_sources": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "x_mitre_defense_bypassed": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "x_mitre_deprecated": {
+                    "type": "boolean"
+                },
+                "x_mitre_detection": {
+                    "type": "string"
+                },
+                "x_mitre_domains": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "x_mitre_effective_permissions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "x_mitre_impact_type": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "x_mitre_is_subtechnique": {
+                    "type": "boolean"
+                },
+                "x_mitre_permissions_required": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "x_mitre_platforms": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "x_mitre_remote_support": {
+                    "type": "boolean"
+                },
+                "x_mitre_system_requirements": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "x_mitre_version": {
+                    "type": "string"
+                }
+            }
+        },
+        "ml.TrainingPerformance": {
+            "type": "object",
+            "properties": {
+                "algorithmMetrics": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "number",
+                        "format": "float64"
+                    }
+                },
+                "driftDetected": {
+                    "type": "boolean"
+                },
+                "sampleCount": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "timestamp": {
+                    "type": "string"
+                },
+                "trainingDuration": {
+                    "$ref": "#/definitions/time.Duration"
+                },
+                "validationScore": {
+                    "type": "number",
+                    "format": "float64"
+                }
+            }
+        },
+        "soar.ActionResult": {
+            "type": "object",
+            "properties": {
+                "action_type": {
+                    "$ref": "#/definitions/soar.ActionType"
+                },
+                "completed_at": {
+                    "type": "string"
+                },
+                "duration": {
+                    "$ref": "#/definitions/time.Duration"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "output": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/soar.ActionStatus"
+                }
+            }
+        },
+        "soar.ActionStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "running",
+                "completed",
+                "failed",
+                "skipped"
+            ],
+            "x-enum-varnames": [
+                "ActionStatusPending",
+                "ActionStatusRunning",
+                "ActionStatusCompleted",
+                "ActionStatusFailed",
+                "ActionStatusSkipped"
+            ]
+        },
+        "soar.ActionType": {
+            "type": "string",
+            "enum": [
+                "block_ip",
+                "isolate_host",
+                "quarantine_file",
+                "send_notification",
+                "enrich_ioc",
+                "create_ticket",
+                "update_alert",
+                "call_webhook",
+                "run_script"
+            ],
+            "x-enum-varnames": [
+                "ActionTypeBlock",
+                "ActionTypeIsolate",
+                "ActionTypeQuarantine",
+                "ActionTypeNotify",
+                "ActionTypeEnrich",
+                "ActionTypeCreateTicket",
+                "ActionTypeUpdateAlert",
+                "ActionTypeWebhook",
+                "ActionTypeScript"
+            ]
+        },
+        "soar.ApprovalAction": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "$ref": "#/definitions/soar.ApprovalActionType"
+                },
+                "approval_id": {
+                    "type": "string"
+                },
+                "comment": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "soar.ApprovalActionType": {
+            "type": "string",
+            "enum": [
+                "approve",
+                "reject",
+                "escalate",
+                "comment"
+            ],
+            "x-enum-varnames": [
+                "ApprovalActionApprove",
+                "ApprovalActionReject",
+                "ApprovalActionEscalate",
+                "ApprovalActionComment"
+            ]
+        },
+        "soar.ApprovalConfig": {
+            "type": "object",
+            "properties": {
+                "allow_self_approval": {
+                    "type": "boolean"
+                },
+                "escalation_config": {
+                    "$ref": "#/definitions/soar.EscalationConfig"
+                },
+                "min_approvers": {
+                    "description": "Minimum number of approvers",
+                    "type": "integer"
+                },
+                "mode": {
+                    "$ref": "#/definitions/soar.ApprovalMode"
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "required_approvers": {
+                    "description": "User IDs or role names",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "timeout_minutes": {
+                    "description": "Auto-expire after this time",
+                    "type": "integer"
+                }
+            }
+        },
+        "soar.ApprovalMode": {
+            "type": "string",
+            "enum": [
+                "any",
+                "all",
+                "majority"
+            ],
+            "x-enum-varnames": [
+                "ApprovalModeAny",
+                "ApprovalModeAll",
+                "ApprovalModeMajority"
+            ]
+        },
+        "soar.ApprovalRequest": {
+            "type": "object",
+            "properties": {
+                "alert_id": {
+                    "type": "string"
+                },
+                "approval_count": {
+                    "type": "integer"
+                },
+                "context": {
+                    "description": "Alert details, step params, etc.",
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "escalation_level": {
+                    "type": "integer"
+                },
+                "execution_id": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "min_approvers": {
+                    "type": "integer"
+                },
+                "mode": {
+                    "$ref": "#/definitions/soar.ApprovalMode"
+                },
+                "playbook_id": {
+                    "type": "string"
+                },
+                "playbook_name": {
+                    "type": "string"
+                },
+                "rejection_count": {
+                    "type": "integer"
+                },
+                "requested_by": {
+                    "type": "string"
+                },
+                "required_approvers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "resolved_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/soar.ApprovalStatus"
+                },
+                "step_id": {
+                    "type": "string"
+                },
+                "step_name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "version": {
+                    "description": "For optimistic locking",
+                    "type": "integer"
+                }
+            }
+        },
+        "soar.ApprovalStats": {
+            "type": "object",
+            "properties": {
+                "avg_response_time_minutes": {
+                    "type": "number"
+                },
+                "total_approved": {
+                    "type": "integer"
+                },
+                "total_escalated": {
+                    "type": "integer"
+                },
+                "total_expired": {
+                    "type": "integer"
+                },
+                "total_pending": {
+                    "type": "integer"
+                },
+                "total_rejected": {
+                    "type": "integer"
+                }
+            }
+        },
+        "soar.ApprovalStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "approved",
+                "rejected",
+                "expired",
+                "escalated",
+                "cancelled"
+            ],
+            "x-enum-varnames": [
+                "ApprovalStatusPending",
+                "ApprovalStatusApproved",
+                "ApprovalStatusRejected",
+                "ApprovalStatusExpired",
+                "ApprovalStatusEscalated",
+                "ApprovalStatusCancelled"
+            ]
+        },
+        "soar.EscalationConfig": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "escalate_after_mins": {
+                    "type": "integer"
+                },
+                "escalate_to": {
+                    "description": "User IDs or roles to escalate to",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "max_escalation_level": {
+                    "type": "integer"
+                }
+            }
+        },
+        "soar.Playbook": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "priority": {
+                    "description": "Higher priority runs first",
+                    "type": "integer"
+                },
+                "steps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/soar.PlaybookStep"
+                    }
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "triggers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/soar.PlaybookTrigger"
+                    }
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "soar.PlaybookCondition": {
+            "type": "object",
+            "properties": {
+                "field": {
+                    "type": "string"
+                },
+                "operator": {
+                    "description": "eq, ne, gt, lt, contains, matches",
+                    "type": "string"
+                },
+                "value": {}
+            }
+        },
+        "soar.PlaybookStep": {
+            "type": "object",
+            "properties": {
+                "action_type": {
+                    "$ref": "#/definitions/soar.ActionType"
+                },
+                "approval": {
+                    "description": "Approval requirements for this step",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/soar.ApprovalConfig"
+                        }
+                    ]
+                },
+                "conditions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/soar.PlaybookCondition"
+                    }
+                },
+                "continue_on_error": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parameters": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "timeout": {
+                    "$ref": "#/definitions/time.Duration"
+                }
+            }
+        },
+        "soar.PlaybookTrigger": {
+            "type": "object",
+            "properties": {
+                "conditions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/soar.PlaybookCondition"
+                    }
+                },
+                "type": {
+                    "description": "alert, severity, rule_id, ioc_type",
+                    "type": "string"
+                }
+            }
+        },
+        "storage.DynamicListener": {
+            "type": "object",
+            "properties": {
+                "cert_file": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "error_count": {
+                    "type": "integer"
+                },
+                "events_per_minute": {
+                    "type": "number"
+                },
+                "events_received": {
+                    "type": "integer"
+                },
+                "field_mapping": {
+                    "description": "Field mapping to use for normalization",
+                    "type": "string"
+                },
+                "host": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "key_file": {
+                    "type": "string"
+                },
+                "last_event": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "protocol": {
+                    "description": "tcp, udp, tls",
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "stopped, starting, running, error",
+                    "type": "string"
+                },
+                "stopped_at": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "tls": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "description": "syslog, cef, json, fluentd, fluentbit",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "storage.ListenerStats": {
+            "type": "object",
+            "properties": {
+                "error_count": {
+                    "type": "integer"
+                },
+                "error_rate": {
+                    "type": "number"
+                },
+                "events_per_minute": {
+                    "type": "number"
+                },
+                "events_received": {
+                    "type": "integer"
+                },
+                "last_event": {
+                    "type": "string"
+                },
+                "uptime_duration": {
+                    "type": "number"
+                }
+            }
+        },
+        "storage.ModelMetadata": {
+            "type": "object",
+            "properties": {
+                "algorithm": {
+                    "description": "TASK 37: zscore, iqr, isolation_forest",
+                    "type": "string"
+                },
+                "createdAt": {
+                    "description": "TASK 37: Creation timestamp",
+                    "type": "string"
+                },
+                "filePath": {
+                    "description": "TASK 37: Path to serialized model file (optional)",
+                    "type": "string"
+                },
+                "hyperparameters": {
+                    "description": "TASK 37: JSON hyperparameters",
+                    "type": "string"
+                },
+                "metrics": {
+                    "description": "JSON string (performance metrics: precision, recall, F1)",
+                    "type": "string"
+                },
+                "modelType": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "TASK 37: active, retired, training",
+                    "type": "string"
+                },
+                "trainedAt": {
+                    "type": "string"
+                },
+                "trainingCompletedAt": {
+                    "description": "TASK 37: When training finished",
+                    "type": "string"
+                },
+                "trainingSamples": {
+                    "description": "TASK 37: Number of samples used for training",
+                    "type": "integer"
+                },
+                "trainingStartedAt": {
+                    "description": "TASK 37: When training began",
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "storage.Permission": {
+            "type": "string",
+            "enum": [
+                "read:events",
+                "read:alerts",
+                "alert:acknowledge",
+                "alert:comment",
+                "alert:disposition",
+                "alert:assign",
+                "investigations:create",
+                "read:investigations",
+                "write:investigations",
+                "read:rules",
+                "write:rules",
+                "read:actions",
+                "write:actions",
+                "read:users",
+                "write:users",
+                "admin:system",
+                "read:listeners",
+                "write:listeners"
+            ],
+            "x-enum-comments": {
+                "PermAcknowledgeAlerts": "TASK 31: Alert acknowledge permission",
+                "PermAssignAlerts": "TASK 105: Alert assignment permission",
+                "PermCommentAlerts": "TASK 31: Alert comment permission",
+                "PermCreateInvestigations": "TASK 106: Investigation creation permission",
+                "PermDispositionAlerts": "TASK 104: Alert disposition permission",
+                "PermReadInvestigations": "Investigation read permission (view, list, evidence download)",
+                "PermWriteInvestigations": "Investigation write permission (update, evidence upload/delete)"
+            },
+            "x-enum-descriptions": [
+                "",
+                "",
+                "TASK 31: Alert acknowledge permission",
+                "TASK 31: Alert comment permission",
+                "TASK 104: Alert disposition permission",
+                "TASK 105: Alert assignment permission",
+                "TASK 106: Investigation creation permission",
+                "Investigation read permission (view, list, evidence download)",
+                "Investigation write permission (update, evidence upload/delete)",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                ""
+            ],
+            "x-enum-varnames": [
+                "PermReadEvents",
+                "PermReadAlerts",
+                "PermAcknowledgeAlerts",
+                "PermCommentAlerts",
+                "PermDispositionAlerts",
+                "PermAssignAlerts",
+                "PermCreateInvestigations",
+                "PermReadInvestigations",
+                "PermWriteInvestigations",
+                "PermReadRules",
+                "PermWriteRules",
+                "PermReadActions",
+                "PermWriteActions",
+                "PermReadUsers",
+                "PermWriteUsers",
+                "PermAdminSystem",
+                "PermReadListeners",
+                "PermWriteListeners"
+            ]
+        },
+        "storage.PlaybookStats": {
+            "type": "object",
+            "properties": {
+                "disabled_playbooks": {
+                    "type": "integer"
+                },
+                "enabled_playbooks": {
+                    "type": "integer"
+                },
+                "total_playbooks": {
+                    "type": "integer"
+                }
+            }
+        },
+        "storage.Role": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "permissions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/storage.Permission"
+                    }
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "storage.User": {
+            "type": "object",
+            "properties": {
+                "active": {
+                    "type": "boolean"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "locked_until": {
+                    "description": "Account lockout expiration",
+                    "type": "string"
+                },
+                "mfa_enabled": {
+                    "description": "Whether MFA is enabled",
+                    "type": "boolean"
+                },
+                "must_change_password": {
+                    "description": "TASK 38.3: Force password change on first login",
+                    "type": "boolean"
+                },
+                "password_changed_at": {
+                    "description": "Last password change time (for password expiry)",
+                    "type": "string"
+                },
+                "role_id": {
+                    "description": "Foreign key to roles table",
+                    "type": "integer"
+                },
+                "role_name": {
+                    "description": "Denormalized for convenience",
+                    "type": "string"
+                },
+                "roles": {
+                    "description": "DEPRECATED: Legacy field for backward compatibility",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "time.Duration": {
+            "type": "integer",
+            "format": "int64",
+            "enum": [
+                -9223372036854775808,
+                9223372036854775807,
+                1,
+                1000,
+                1000000,
+                1000000000,
+                60000000000,
+                3600000000000
+            ],
+            "x-enum-varnames": [
+                "minDuration",
+                "maxDuration",
+                "Nanosecond",
+                "Microsecond",
+                "Millisecond",
+                "Second",
+                "Minute",
+                "Hour"
+            ]
         }
     }
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0",
-	Host:             "localhost:8081",
-	BasePath:         "/",
+	Version:          "",
+	Host:             "",
+	BasePath:         "",
 	Schemes:          []string{},
-	Title:            "Cerberus SIEM API",
-	Description:      "API for managing Cerberus SIEM events, alerts, rules, and configuration",
+	Title:            "",
+	Description:      "",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

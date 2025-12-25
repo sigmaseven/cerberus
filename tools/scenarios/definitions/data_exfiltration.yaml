@@ -1,0 +1,48 @@
+name: "Data Exfiltration"
+description: "Large data transfer to external IP indicating data exfiltration"
+duration: 45s
+source_ip: "10.0.1.50"
+external_ip: "198.51.100.25"
+
+events:
+  # Stage 1: File access to sensitive data
+  - type: file_access
+    count: 1
+    fields:
+      event_type: file_access
+      source_ip: "${SOURCE_IP}"
+      file_path: "/etc/passwd"
+      action: read
+      user: "compromised_user"
+      process: "/usr/bin/cat"
+
+  # Stage 2: Large data transfers
+  - type: network_connection
+    count: 10
+    interval: 3s
+    delay: 5s
+    fields:
+      event_type: network_connection
+      source_ip: "${SOURCE_IP}"
+      dest_ip: "${EXTERNAL_IP}"
+      dest_port: 443
+      protocol: tcp
+      connection_state: established
+      bytes_sent: 104857600  # 100MB per transfer
+      bytes_received: 1024
+      duration: 2.5
+
+expected_alerts:
+  - rule_id: suspicious_file_access
+    severity: medium
+    min_count: 1
+  - rule_id: large_data_transfer
+    severity: high
+    min_count: 1
+  - rule_id: data_access_then_exfil
+    severity: critical
+    min_count: 1
+
+validation:
+  timeout: 90s
+  check_interval: 5s

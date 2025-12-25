@@ -36,9 +36,14 @@ function Alerts() {
 
   const queryClient = useQueryClient();
 
+  // Server-side filtering - pass filters to API
   const { data: alerts, isLoading, error } = useQuery({
-    queryKey: ['alerts'],
-    queryFn: apiService.getAlerts,
+    queryKey: ['alerts', filterSeverity, filterStatus, searchTerm],
+    queryFn: () => apiService.getAlerts(1, 100, {
+      severity: filterSeverity,
+      status: filterStatus,
+      q: searchTerm || undefined,
+    }),
     refetchInterval: 10000, // Refresh every 10 seconds
   });
 
@@ -103,19 +108,37 @@ function Alerts() {
         return 'warning';
       case AlertStatus.Acknowledged:
         return 'success';
+      case AlertStatus.Investigating:
+        return 'info';
+      case AlertStatus.Resolved:
+        return 'success';
+      case AlertStatus.Escalated:
+        return 'error';
+      case AlertStatus.Closed:
+        return 'default';
       case AlertStatus.Dismissed:
         return 'default';
+      case AlertStatus.FalsePositive:
+        return 'warning';
       default:
         return 'default';
     }
   };
 
-  const filteredAlerts = alerts?.filter((alert) => {
-    const matchesSeverity = filterSeverity === 'all' || alert.severity.toLowerCase() === filterSeverity;
-    const matchesStatus = filterStatus === 'all' || alert.status === filterStatus;
-    const matchesSearch = searchTerm === '' ||
-      alert.rule_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      alert.event.event_type.toLowerCase().includes(searchTerm.toLowerCase());
+  // Server-side filtering is now active - use items directly
+  // Client-side filter kept as safety net for any edge cases
+  const filteredAlerts = alerts?.items?.filter((alert) => {
+    // Severity filter (server handles this, but defensive check)
+    const matchesSeverity = filterSeverity === 'all' ||
+      (alert.severity && alert.severity.toLowerCase() === filterSeverity.toLowerCase());
+    // Status filter (server handles this, but defensive check)
+    const matchesStatus = filterStatus === 'all' ||
+      (alert.status && alert.status.toLowerCase() === filterStatus.toLowerCase());
+    // Search filter
+    const matchesSearch = !searchTerm ||
+      (alert.rule_id && alert.rule_id.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (alert.rule_name && alert.rule_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (alert.event?.event_type && alert.event.event_type.toLowerCase().includes(searchTerm.toLowerCase()));
     return matchesSeverity && matchesStatus && matchesSearch;
   });
 
@@ -184,7 +207,12 @@ function Alerts() {
             <MenuItem value="all">All</MenuItem>
             <MenuItem value={AlertStatus.Pending}>Pending</MenuItem>
             <MenuItem value={AlertStatus.Acknowledged}>Acknowledged</MenuItem>
+            <MenuItem value={AlertStatus.Investigating}>Investigating</MenuItem>
+            <MenuItem value={AlertStatus.Resolved}>Resolved</MenuItem>
+            <MenuItem value={AlertStatus.Escalated}>Escalated</MenuItem>
+            <MenuItem value={AlertStatus.Closed}>Closed</MenuItem>
             <MenuItem value={AlertStatus.Dismissed}>Dismissed</MenuItem>
+            <MenuItem value={AlertStatus.FalsePositive}>False Positive</MenuItem>
           </Select>
         </FormControl>
 

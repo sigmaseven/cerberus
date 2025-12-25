@@ -4,14 +4,13 @@ import (
 	"net/http"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/time/rate"
 )
 
 // rateLimitMiddleware provides rate limiting per IP
 func (a *API) rateLimitMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip := getRealIP(r, a.config.API.TrustProxy)
+		ip := getRealIP(r, a.config.API.TrustProxy, a.config.API.TrustedProxyNetworks)
 		a.rateLimitersMu.Lock()
 		entry, exists := a.rateLimiters[ip]
 		if !exists {
@@ -51,13 +50,9 @@ func (a *API) cleanupRateLimiters() {
 			}
 			a.rateLimitersMu.Unlock()
 
-			a.authFailuresMu.Lock()
-			for ip, entry := range a.authFailures {
-				if time.Since(entry.lastFail) > 1*time.Hour {
-					delete(a.authFailures, ip)
-				}
-			}
-			a.authFailuresMu.Unlock()
+			// SECURITY FIX: This cleanup is now handled in auth.go with the AuthManager
+			// to prevent race conditions with the order tracking slices
+			// The authManager handles its own cleanup via cleanupAuthFailures()
 		case <-a.stopCh:
 			return
 		}
@@ -68,15 +63,24 @@ func (a *API) cleanupRateLimiters() {
 func (a *API) corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
+
+		// SECURITY FIX: Only set CORS headers if origin is explicitly allowed
+		// This prevents wildcard CORS attacks and ensures strict origin checking
+		originAllowed := false
 		for _, allowed := range a.config.API.AllowedOrigins {
 			if origin == allowed {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
+				originAllowed = true
 				break
 			}
 		}
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+		// Only set other CORS headers if origin was explicitly allowed
+		if originAllowed {
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-CSRF-Token")
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+		}
 
 		// Add HSTS if TLS is enabled
 		if a.config.API.TLS {
@@ -87,49 +91,6 @@ func (a *API) corsMiddleware(next http.Handler) http.Handler {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-
-		next.ServeHTTP(w, r)
-	})
-}
-
-// basicAuthMiddleware provides basic authentication with rate limiting for failed attempts
-func (a *API) basicAuthMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip := getRealIP(r, a.config.API.TrustProxy)
-
-		// Check if IP is blocked due to too many failures
-		a.authFailuresMu.Lock()
-		entry, exists := a.authFailures[ip]
-		if exists && entry.count >= 5 && time.Since(entry.lastFail) < 10*time.Minute {
-			a.authFailuresMu.Unlock()
-			a.logger.Errorf("Too many failed auth attempts from IP: %s", ip)
-			http.Error(w, "Too many requests", http.StatusTooManyRequests)
-			return
-		}
-		a.authFailuresMu.Unlock()
-
-		username, password, ok := r.BasicAuth()
-		if !ok || username != a.config.Auth.Username || bcrypt.CompareHashAndPassword([]byte(a.config.Auth.HashedPassword), []byte(password)) != nil {
-			// Increment failure count
-			a.authFailuresMu.Lock()
-			if !exists {
-				a.authFailures[ip] = &authFailureEntry{count: 1, lastFail: time.Now()}
-			} else {
-				entry.count++
-				entry.lastFail = time.Now()
-			}
-			a.authFailuresMu.Unlock()
-
-			a.logger.Errorf("Failed authentication attempt from IP: %s", ip)
-			w.Header().Set("WWW-Authenticate", `Basic realm="Cerberus API"`)
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		// On success, reset failure count
-		a.authFailuresMu.Lock()
-		delete(a.authFailures, ip)
-		a.authFailuresMu.Unlock()
 
 		next.ServeHTTP(w, r)
 	})

@@ -26,29 +26,46 @@ services:
       - ./config.yaml:/app/config.yaml:ro
       - ./rules.json:/app/rules.json:ro
       - ./correlation_rules.json:/app/correlation_rules.json:ro
+      - ./data:/app/data  # SQLite database directory
     environment:
-      - CERBERUS_MONGODB_URI=mongodb://mongo:27017
-      - CERBERUS_MONGODB_DATABASE=cerberus
+      # ClickHouse connection
+      - CERBERUS_CLICKHOUSE_ADDR=clickhouse:9000
+      - CERBERUS_CLICKHOUSE_DATABASE=cerberus
+      - CERBERUS_CLICKHOUSE_USER=default
+      - CERBERUS_CLICKHOUSE_PASSWORD=testpass123
     depends_on:
-      - mongo
+      clickhouse:
+        condition: service_healthy
     networks:
       - cerberus-net
     restart: unless-stopped
 
-  mongo:
-    image: mongo:latest
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
     ports:
-      - "27017:27017"
+      - "9000:9000"     # Native protocol
+      - "8123:8123"     # HTTP interface
     volumes:
-      - mongo_data:/data/db
+      - clickhouse_data:/var/lib/clickhouse
+      - clickhouse_logs:/var/log/clickhouse-server
     environment:
-      - MONGO_INITDB_DATABASE=cerberus
+      - CLICKHOUSE_DB=cerberus
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=testpass123
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
     networks:
       - cerberus-net
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
 volumes:
-  mongo_data:
+  clickhouse_data:
+  clickhouse_logs:
 
 networks:
   cerberus-net:

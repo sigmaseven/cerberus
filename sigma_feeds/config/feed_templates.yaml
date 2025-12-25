@@ -1,0 +1,149 @@
+templates:
+  - id: sigmahq-full
+    name: "SigmaHQ - Full Repository"
+    description: "Complete SigmaHQ repository with 3000+ community detection rules"
+    type: git
+    url: https://github.com/SigmaHQ/sigma.git
+    branch: master
+    include_paths:
+      - "rules/**/*.yml"
+    exclude_paths:
+      - "rules/*/deprecated/**"
+      - "rules/*/test/**"
+    recommended_priority: 100
+    estimated_rule_count: 3000
+    tags:
+      - official
+      - community
+      - sigmahq
+
+  - id: sigmahq-windows
+    name: "SigmaHQ - Windows Rules Only"
+    description: "Windows-specific detection rules from SigmaHQ (1800+ rules)"
+    type: git
+    url: https://github.com/SigmaHQ/sigma.git
+    branch: master
+    include_paths:
+      - "rules/windows/**/*.yml"
+    exclude_paths:
+      - "rules/windows/deprecated/**"
+    recommended_priority: 100
+    estimated_rule_count: 1800
+    tags:
+      - official
+      - windows
+      - sigmahq
+
+  - id: sigmahq-linux
+    name: "SigmaHQ - Linux Rules Only"
+    description: "Linux-specific detection rules from SigmaHQ (400+ rules)"
+    type: git
+    url: https://github.com/SigmaHQ/sigma.git
+    branch: master
+    include_paths:
+      - "rules/linux/**/*.yml"
+    exclude_paths:
+      - "rules/linux/deprecated/**"
+    recommended_priority: 100
+    estimated_rule_count: 400
+    tags:
+      - official
+      - linux
+      - sigmahq
+
+  - id: sigmahq-cloud
+    name: "SigmaHQ - Cloud Rules"
+    description: "Cloud platform rules for AWS, Azure, GCP, M365 (300+ rules)"
+    type: git
+    url: https://github.com/SigmaHQ/sigma.git
+    branch: master
+    include_paths:
+      - "rules/cloud/**/*.yml"
+    exclude_paths:
+      - "rules/cloud/deprecated/**"
+    recommended_priority: 90
+    estimated_rule_count: 300
+    tags:
+      - official
+      - cloud
+      - sigmahq
+
+  - id: sigmahq-network
+    name: "SigmaHQ - Network Rules"
+    description: "Network protocol and traffic detection rules (200+ rules)"
+    type: git
+    url: https://github.com/SigmaHQ/sigma.git
+    branch: master
+    include_paths:
+      - "rules/network/**/*.yml"
+    exclude_paths:
+      - "rules/network/deprecated/**"
+    recommended_priority: 80
+    estimated_rule_count: 200
+    tags:
+      - official
+      - network
+      - sigmahq
+
+  - id: sigmahq-web
+    name: "SigmaHQ - Web Application Rules"
+    description: "Web application security detection rules (150+ rules)"
+    type: git
+    url: https://github.com/SigmaHQ/sigma.git
+    branch: master
+    include_paths:
+      - "rules/web/**/*.yml"
+    exclude_paths:
+      - "rules/web/deprecated/**"
+    recommended_priority: 75
+    estimated_rule_count: 150
+    tags:
+      - official
+      - web
+      - sigmahq
+
+  - id: sigmahq-macos
+    name: "SigmaHQ - macOS Rules"
+    description: "macOS-specific detection rules from SigmaHQ (150+ rules)"
+    type: git
+    url: https://github.com/SigmaHQ/sigma.git
+    branch: master
+    include_paths:
+      - "rules/macos/**/*.yml"
+    exclude_paths:
+      - "rules/macos/deprecated/**"
+    recommended_priority: 85
+    estimated_rule_count: 150
+    tags:
+      - official
+      - macos
+      - sigmahq
+
+  - id: sigmahq-emerging-threats
+    name: "SigmaHQ - Emerging Threats"
+    description: "Latest threat intelligence and APT detection rules"
+    type: git
+    url: https://github.com/SigmaHQ/sigma.git
+    branch: master
+    include_paths:
+      - "rules/*/threat/**/*.yml"
+      - "rules/*/apt/**/*.yml"
+    recommended_priority: 200
+    estimated_rule_count: 500
+    tags:
+      - threat-intel
+      - apt
+      - high-priority
+      - sigmahq
+
+  - id: custom-org
+    name: "Custom Organization Rules"
+    description: "Custom detection rules developed in-house"
+    type: filesystem
+    path: ./sigma_rules/custom/
+    recommended_priority: 1000
+    estimated_rule_count: 0
+    tags:
+      - custom
+      - internal
+      - high-priority

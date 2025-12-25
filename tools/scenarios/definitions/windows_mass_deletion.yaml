@@ -1,0 +1,30 @@
+name: "Windows Mass Account Deletion"
+description: "Multiple user accounts deleted in short timeframe - possible sabotage"
+duration: 60s
+attacker_user: "domain_admin"
+target_host: "DC01.corp.local"
+
+events:
+  # Rapidly delete multiple user accounts
+  - type: windows_user_account_deleted
+    count: 5
+    interval: 5s
+    fields:
+      event_type: windows_user_account_deleted
+      event_id: 4726
+      computer_name: "${TARGET_HOST}"
+      target_user: "user{INDEX}"
+      subject_user: "${ATTACKER_USER}"
+      subject_domain: "CORP"
+
+expected_alerts:
+  - rule_id: windows_user_account_deleted
+    severity: medium
+    min_count: 3
+  - rule_id: windows_mass_account_deletion
+    severity: critical
+    min_count: 1
+
+validation:
+  timeout: 90s
+  check_interval: 5s

@@ -1,0 +1,26 @@
+title: Mimikatz Command Line
+id: a642964e-bead-4bed-8910-1bb4d63e3b4d
+status: test
+description: Detects Mimikatz through command line arguments
+references:
+  - https://attack.mitre.org/software/S0002/
+author: Florian Roth
+date: 2019/01/16
+tags:
+  - attack.credential_access
+  - attack.t1003.001
+  - attack.s0002
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains:
+      - 'sekurlsa'
+      - 'kerberos::golden'
+      - 'lsadump::sam'
+      - 'privilege::debug'
+  condition: selection
+falsepositives:
+  - Unlikely
+level: critical

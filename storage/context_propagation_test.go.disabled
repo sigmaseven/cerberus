@@ -1,0 +1,290 @@
+package storage
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"cerberus/config"
+	"cerberus/core"
+
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+)
+
+// TestClickHouseAlertStorage_GracefulShutdown verifies that Stop() triggers graceful shutdown
+// TASK 144: Context propagation test for graceful shutdown
+func TestClickHouseAlertStorage_GracefulShutdown(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+	cfg := &config.Config{}
+	cfg.ClickHouse.BatchSize = 100
+
+	// Create alert channel
+	alertCh := make(chan *core.Alert)
+
+	// Create storage (with nil ClickHouse - safe for this test)
+	storage, err := NewClickHouseAlertStorage(nil, cfg, alertCh, logger)
+	assert.NoError(t, err)
+
+	// Start workers
+	storage.Start(2)
+
+	// Send some alerts
+	go func() {
+		for i := 0; i < 5; i++ {
+			alertCh <- &core.Alert{
+				AlertID: "test-alert",
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		close(alertCh)
+	}()
+
+	// Give workers time to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Measure shutdown time
+	start := time.Now()
+	storage.Stop()
+	elapsed := time.Since(start)
+
+	// Verify graceful shutdown completed within reasonable time
+	// Should be near-instant since we closed the channel
+	assert.Less(t, elapsed, 5*time.Second, "graceful shutdown should complete quickly")
+
+	// Verify all workers exited (wg.Wait() returned)
+	// If workers didn't exit, Stop() would hang
+}
+
+// TestClickHouseEventStorage_GracefulShutdown verifies that Stop() triggers graceful shutdown
+// TASK 144: Context propagation test for graceful shutdown
+func TestClickHouseEventStorage_GracefulShutdown(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+	cfg := &config.Config{}
+	cfg.ClickHouse.BatchSize = 100
+	cfg.ClickHouse.FlushInterval = 1
+	cfg.Storage.DedupCacheSize = 1000
+	cfg.Storage.Deduplication = false
+
+	// Create event channel
+	eventCh := make(chan *core.Event)
+
+	// Create storage (with nil ClickHouse - safe for this test)
+	storage, err := NewClickHouseEventStorage(nil, cfg, eventCh, logger)
+	assert.NoError(t, err)
+
+	// Start workers
+	storage.Start(2)
+
+	// Send some events
+	go func() {
+		for i := 0; i < 5; i++ {
+			eventCh <- &core.Event{
+				EventID: "test-event",
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		close(eventCh)
+	}()
+
+	// Give workers time to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Measure shutdown time
+	start := time.Now()
+	storage.Stop()
+	elapsed := time.Since(start)
+
+	// Verify graceful shutdown completed within reasonable time
+	assert.Less(t, elapsed, 5*time.Second, "graceful shutdown should complete quickly")
+}
+
+// TestClickHouseAlertStorage_ContextCancellation verifies context cancellation stops workers
+// TASK 144: Verifies that context cancellation properly terminates background goroutines
+func TestClickHouseAlertStorage_ContextCancellation(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+	cfg := &config.Config{}
+	cfg.ClickHouse.BatchSize = 100
+
+	// Create alert channel (keep it open to test context cancellation)
+	alertCh := make(chan *core.Alert)
+	defer close(alertCh)
+
+	// Create storage
+	storage, err := NewClickHouseAlertStorage(nil, cfg, alertCh, logger)
+	assert.NoError(t, err)
+
+	// Start workers
+	numWorkers := 3
+	storage.Start(numWorkers)
+
+	// Give workers time to start and process some alerts
+	go func() {
+		for i := 0; i < 10; i++ {
+			alertCh <- &core.Alert{
+				AlertID: "test-alert",
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Stop should cancel context and wait for all workers
+	done := make(chan struct{})
+	go func() {
+		storage.Stop()
+		close(done)
+	}()
+
+	// Wait for shutdown with timeout
+	select {
+	case <-done:
+		// Success - all workers stopped
+	case <-time.After(5 * time.Second):
+		t.Fatal("workers did not stop within timeout - context cancellation failed")
+	}
+}
+
+// TestClickHouseEventStorage_ContextCancellation verifies context cancellation stops workers
+// TASK 144: Verifies that context cancellation properly terminates background goroutines
+func TestClickHouseEventStorage_ContextCancellation(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+	cfg := &config.Config{}
+	cfg.ClickHouse.BatchSize = 100
+	cfg.ClickHouse.FlushInterval = 1
+	cfg.Storage.DedupCacheSize = 1000
+	cfg.Storage.Deduplication = false
+
+	// Create event channel (keep it open to test context cancellation)
+	eventCh := make(chan *core.Event)
+	defer close(eventCh)
+
+	// Create storage
+	storage, err := NewClickHouseEventStorage(nil, cfg, eventCh, logger)
+	assert.NoError(t, err)
+
+	// Start workers
+	numWorkers := 3
+	storage.Start(numWorkers)
+
+	// Give workers time to start and process some events
+	go func() {
+		for i := 0; i < 10; i++ {
+			eventCh <- &core.Event{
+				EventID: "test-event",
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Stop should cancel context and wait for all workers
+	done := make(chan struct{})
+	go func() {
+		storage.Stop()
+		close(done)
+	}()
+
+	// Wait for shutdown with timeout
+	select {
+	case <-done:
+		// Success - all workers stopped
+	case <-time.After(5 * time.Second):
+		t.Fatal("workers did not stop within timeout - context cancellation failed")
+	}
+}
+
+// TestClickHouseAlertStorage_ShutdownFlush verifies final batch flush on shutdown
+// TASK 144: Ensures data is not lost during graceful shutdown
+func TestClickHouseAlertStorage_ShutdownFlush(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+	cfg := &config.Config{}
+	cfg.ClickHouse.BatchSize = 1000 // Large batch size to test flush on shutdown
+
+	// Create alert channel
+	alertCh := make(chan *core.Alert, 10)
+
+	// Create storage
+	storage, err := NewClickHouseAlertStorage(nil, cfg, alertCh, logger)
+	assert.NoError(t, err)
+
+	// Start worker
+	storage.Start(1)
+
+	// Send alerts (fewer than batch size)
+	for i := 0; i < 5; i++ {
+		alertCh <- &core.Alert{
+			AlertID: "test-alert",
+		}
+	}
+
+	// Give worker time to receive alerts
+	time.Sleep(50 * time.Millisecond)
+
+	// Trigger shutdown via context cancellation (not channel close)
+	// This tests the ctx.Done() case which should flush pending batch
+	storage.Stop()
+
+	// If we get here without hanging, the worker properly handled shutdown flush
+}
+
+// TestClickHouseEventStorage_ShutdownFlush verifies final batch flush on shutdown
+// TASK 144: Ensures data is not lost during graceful shutdown
+func TestClickHouseEventStorage_ShutdownFlush(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+	cfg := &config.Config{}
+	cfg.ClickHouse.BatchSize = 1000      // Large batch size to test flush on shutdown
+	cfg.ClickHouse.FlushInterval = 10    // Long interval to ensure shutdown happens first
+	cfg.Storage.DedupCacheSize = 1000
+	cfg.Storage.Deduplication = false
+
+	// Create event channel
+	eventCh := make(chan *core.Event, 10)
+
+	// Create storage
+	storage, err := NewClickHouseEventStorage(nil, cfg, eventCh, logger)
+	assert.NoError(t, err)
+
+	// Start worker
+	storage.Start(1)
+
+	// Send events (fewer than batch size)
+	for i := 0; i < 5; i++ {
+		eventCh <- &core.Event{
+			EventID: "test-event",
+		}
+	}
+
+	// Give worker time to receive events
+	time.Sleep(50 * time.Millisecond)
+
+	// Trigger shutdown via context cancellation
+	storage.Stop()
+
+	// If we get here without hanging, the worker properly handled shutdown flush
+}
+
+// TestContextPropagation_MultipleStops verifies idempotent Stop() calls
+// TASK 144: Stop() should be safe to call multiple times
+func TestContextPropagation_MultipleStops(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+	cfg := &config.Config{}
+	cfg.ClickHouse.BatchSize = 100
+
+	alertCh := make(chan *core.Alert)
+	defer close(alertCh)
+
+	storage, err := NewClickHouseAlertStorage(nil, cfg, alertCh, logger)
+	assert.NoError(t, err)
+
+	storage.Start(2)
+
+	// Call Stop() multiple times - should not panic or hang
+	storage.Stop()
+	storage.Stop()
+	storage.Stop()
+
+	// Success if we get here
+}

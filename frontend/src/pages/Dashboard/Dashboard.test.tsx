@@ -12,17 +12,12 @@ vi.mock('../../services/api', () => ({
     getChartData: vi.fn(),
     subscribeToRealtimeUpdates: vi.fn(),
     unsubscribeFromRealtimeUpdates: vi.fn(),
-    isWebSocketConnected: vi.fn(),
-  },
-}));
+    isWebSocketConnected: vi.fn()}}));
 
 const createTestQueryClient = () => new QueryClient({
   defaultOptions: {
     queries: {
-      retry: false,
-    },
-  },
-});
+      retry: false}}});
 
 const renderWithProviders = (component: React.ReactElement) => {
   const testQueryClient = createTestQueryClient();
@@ -38,8 +33,7 @@ describe('Dashboard', () => {
     total_events: 1000,
     active_alerts: 5,
     rules_fired: 25,
-    system_health: 'OK',
-  };
+    system_health: 'OK'};
 
   const mockChartData: ChartData[] = [
     { timestamp: '2024-01-01T00:00:00Z', events: 100, alerts: 5 },
@@ -119,8 +113,7 @@ describe('Dashboard', () => {
     expect(apiService.subscribeToRealtimeUpdates).toHaveBeenCalledWith({
       onDashboardStats: expect.any(Function),
       onConnect: expect.any(Function),
-      onDisconnect: expect.any(Function),
-    });
+      onDisconnect: expect.any(Function)});
   });
 
   it('unsubscribes from real-time updates on unmount', () => {

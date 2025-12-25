@@ -1,0 +1,90 @@
+name: "Lateral Movement Chain"
+description: "Attacker moves laterally through network using RDP and SMB"
+duration: 120s
+attacker_ip: "10.0.1.50"
+target_host_1: "10.0.2.10"
+target_host_2: "10.0.3.15"
+
+events:
+  # Stage 1: Initial RDP connection to first target
+  - type: network_connection
+    count: 1
+    fields:
+      event_type: network_connection
+      source_ip: "${ATTACKER_IP}"
+      dest_ip: "${TARGET_HOST_1}"
+      dest_port: 3389  # RDP
+      protocol: tcp
+      connection_state: established
+      bytes_sent: 50000
+      bytes_received: 75000
+      duration: 60.0
+
+  # Stage 2: Successful authentication on first target
+  - type: authentication
+    count: 1
+    delay: 10s
+    fields:
+      event_type: authentication
+      source_ip: "${ATTACKER_IP}"
+      dest_host: "${TARGET_HOST_1}"
+      username: "administrator"
+      auth_result: success
+      auth_method: password
+
+  # Stage 3: SMB connection to second target from first compromised host
+  - type: network_connection
+    count: 1
+    delay: 30s
+    fields:
+      event_type: network_connection
+      source_ip: "${TARGET_HOST_1}"
+      dest_ip: "${TARGET_HOST_2}"
+      dest_port: 445  # SMB
+      protocol: tcp
+      connection_state: established
+      bytes_sent: 10000
+      bytes_received: 25000
+      duration: 30.0
+
+  # Stage 4: Authentication on second target
+  - type: authentication
+    count: 1
+    delay: 45s
+    fields:
+      event_type: authentication
+      source_ip: "${TARGET_HOST_1}"
+      dest_host: "${TARGET_HOST_2}"
+      username: "administrator"
+      auth_result: success
+      auth_method: password
+
+  # Stage 5: Privileged command execution
+  - type: process_creation
+    count: 1
+    delay: 60s
+    fields:
+      event_type: process_creation
+      source_host: "${TARGET_HOST_2}"
+      process_name: "powershell.exe"
+      command_line: "powershell -enc <encoded_payload>"
+      user: "SYSTEM"
+      parent_process: "services.exe"
+
+expected_alerts:
+  - rule_id: rdp_connection
+    severity: info
+    min_count: 1
+  - rule_id: smb_connection
+    severity: info
+    min_count: 1
+  - rule_id: suspicious_powershell
+    severity: high
+    min_count: 1
+  - rule_id: lateral_movement_rdp_smb
+    severity: high
+    min_count: 1
+
+validation:
+  timeout: 180s
+  check_interval: 10s

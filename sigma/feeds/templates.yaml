@@ -1,0 +1,273 @@
+# SIGMA Rule Feed Templates
+# Pre-defined templates for popular SIGMA rule sources
+# These templates simplify initial configuration and ensure best practices
+
+templates:
+  # SigmaHQ Core - Main SIGMA rules repository
+  - id: sigmahq-core
+    name: "SigmaHQ Core Rules"
+    description: "Official SIGMA rules from the SigmaHQ repository covering Windows, Linux, Network, Cloud, and Application logs"
+    type: git
+    url: https://github.com/SigmaHQ/sigma.git
+    branch: master
+    include_paths:
+      - "rules/windows/"
+      - "rules/linux/"
+      - "rules/network/"
+      - "rules/cloud/"
+      - "rules/application/"
+    recommended_priority: 100
+    estimated_rule_count: 3000
+    tags:
+      - official
+      - comprehensive
+      - production-ready
+
+  # SigmaHQ Windows Detection
+  - id: sigmahq-windows
+    name: "SigmaHQ Windows Rules"
+    description: "Windows-specific detection rules from SigmaHQ including process creation, registry, file events, and more"
+    type: git
+    url: https://github.com/SigmaHQ/sigma.git
+    branch: master
+    include_paths:
+      - "rules/windows/"
+    recommended_priority: 100
+    estimated_rule_count: 2000
+    tags:
+      - official
+      - windows
+      - endpoint
+
+  # SigmaHQ Linux Detection
+  - id: sigmahq-linux
+    name: "SigmaHQ Linux Rules"
+    description: "Linux-specific detection rules from SigmaHQ including auditd, syslog, and system events"
+    type: git
+    url: https://github.com/SigmaHQ/sigma.git
+    branch: master
+    include_paths:
+      - "rules/linux/"
+    recommended_priority: 100
+    estimated_rule_count: 400
+    tags:
+      - official
+      - linux
+      - endpoint
+
+  # SigmaHQ Network Detection
+  - id: sigmahq-network
+    name: "SigmaHQ Network Rules"
+    description: "Network detection rules from SigmaHQ including firewall, DNS, proxy, and Zeek logs"
+    type: git
+    url: https://github.com/SigmaHQ/sigma.git
+    branch: master
+    include_paths:
+      - "rules/network/"
+    recommended_priority: 90
+    estimated_rule_count: 200
+    tags:
+      - official
+      - network
+      - infrastructure
+
+  # SigmaHQ Cloud Detection
+  - id: sigmahq-cloud
+    name: "SigmaHQ Cloud Rules"
+    description: "Cloud platform detection rules from SigmaHQ for AWS, Azure, GCP, and other cloud services"
+    type: git
+    url: https://github.com/SigmaHQ/sigma.git
+    branch: master
+    include_paths:
+      - "rules/cloud/"
+    recommended_priority: 95
+    estimated_rule_count: 300
+    tags:
+      - official
+      - cloud
+      - infrastructure
+
+  # SigmaHQ Emerging Threats
+  - id: sigmahq-emerging-threats
+    name: "SigmaHQ Emerging Threats"
+    description: "Latest threat detection rules from SigmaHQ for newly discovered attack techniques and campaigns"
+    type: git
+    url: https://github.com/SigmaHQ/sigma.git
+    branch: master
+    include_paths:
+      - "rules/emerging-threats/"
+    recommended_priority: 110
+    estimated_rule_count: 150
+    tags:
+      - official
+      - emerging-threats
+      - high-priority
+
+  # SOC Prime Threat Detection Marketplace (Community)
+  - id: socprime-community
+    name: "SOC Prime Community Rules"
+    description: "Community-contributed SIGMA rules from SOC Prime Threat Detection Marketplace"
+    type: git
+    url: https://github.com/socprime/sigma-rules.git
+    branch: main
+    include_paths:
+      - "rules/"
+    recommended_priority: 80
+    estimated_rule_count: 500
+    tags:
+      - community
+      - socprime
+      - threat-intelligence
+
+  # Florian Roth's Detection Rules
+  - id: neo23x0-sigma
+    name: "Florian Roth's SIGMA Rules"
+    description: "High-quality detection rules from Florian Roth (Neo23x0) covering APT campaigns and malware"
+    type: git
+    url: https://github.com/Neo23x0/sigma.git
+    branch: master
+    include_paths:
+      - "rules/"
+    recommended_priority: 105
+    estimated_rule_count: 400
+    tags:
+      - community
+      - apt
+      - malware
+      - high-quality
+
+  # MITRE ATT&CK Focused
+  - id: sigmahq-attack
+    name: "SIGMA Rules - MITRE ATT&CK Coverage"
+    description: "SIGMA rules organized by MITRE ATT&CK framework for comprehensive threat coverage"
+    type: git
+    url: https://github.com/SigmaHQ/sigma.git
+    branch: master
+    include_paths:
+      - "rules/"
+    exclude_paths:
+      - "rules/deprecated/"
+      - "rules/testing/"
+    recommended_priority: 100
+    estimated_rule_count: 3000
+    tags:
+      - official
+      - mitre-attack
+      - framework-aligned
+
+  # Threat Hunting Rules
+  - id: sigmahq-threat-hunting
+    name: "SIGMA Threat Hunting Rules"
+    description: "SIGMA rules specifically designed for threat hunting operations and anomaly detection"
+    type: git
+    url: https://github.com/SigmaHQ/sigma.git
+    branch: master
+    include_paths:
+      - "rules/windows/process_creation/"
+      - "rules/windows/network_connection/"
+      - "rules/linux/process_creation/"
+    recommended_priority: 85
+    estimated_rule_count: 800
+    tags:
+      - threat-hunting
+      - proactive
+      - analytics
+
+  # Web Application Security
+  - id: sigmahq-web
+    name: "SIGMA Web Application Rules"
+    description: "Detection rules for web application attacks, SQL injection, XSS, and web shells"
+    type: git
+    url: https://github.com/SigmaHQ/sigma.git
+    branch: master
+    include_paths:
+      - "rules/web/"
+      - "rules/application/apache/"
+      - "rules/application/nginx/"
+    recommended_priority: 90
+    estimated_rule_count: 150
+    tags:
+      - web-security
+      - application
+      - owasp
+
+  # Proxy and Web Filter Logs
+  - id: sigmahq-proxy
+    name: "SIGMA Proxy/Web Filter Rules"
+    description: "Detection rules for proxy logs, web filtering, and HTTP/HTTPS traffic analysis"
+    type: git
+    url: https://github.com/SigmaHQ/sigma.git
+    branch: master
+    include_paths:
+      - "rules/proxy/"
+    recommended_priority: 85
+    estimated_rule_count: 100
+    tags:
+      - proxy
+      - web-traffic
+      - network
+
+  # Antivirus and EDR Events
+  - id: sigmahq-antivirus
+    name: "SIGMA Antivirus/EDR Rules"
+    description: "Detection rules for antivirus events, EDR alerts, and endpoint security logs"
+    type: git
+    url: https://github.com/SigmaHQ/sigma.git
+    branch: master
+    include_paths:
+      - "rules/windows/antivirus/"
+      - "rules/windows/defender/"
+    recommended_priority: 95
+    estimated_rule_count: 120
+    tags:
+      - antivirus
+      - edr
+      - endpoint-security
+
+  # PowerShell Detection
+  - id: sigmahq-powershell
+    name: "SIGMA PowerShell Rules"
+    description: "Comprehensive PowerShell detection rules for malicious scripts and command execution"
+    type: git
+    url: https://github.com/SigmaHQ/sigma.git
+    branch: master
+    include_paths:
+      - "rules/windows/powershell/"
+    recommended_priority: 100
+    estimated_rule_count: 250
+    tags:
+      - powershell
+      - scripting
+      - windows
+
+  # Office and Macro Detection
+  - id: sigmahq-office
+    name: "SIGMA Office/Macro Rules"
+    description: "Detection rules for malicious Microsoft Office documents and macro-based attacks"
+    type: git
+    url: https://github.com/SigmaHQ/sigma.git
+    branch: master
+    include_paths:
+      - "rules/windows/office/"
+    recommended_priority: 95
+    estimated_rule_count: 80
+    tags:
+      - office
+      - macros
+      - phishing
+
+  # Custom Template Example
+  - id: custom-filesystem
+    name: "Custom Filesystem Feed"
+    description: "Example template for loading SIGMA rules from local filesystem"
+    type: filesystem
+    path: /var/sigma/rules
+    include_paths:
+      - "*.yml"
+      - "*.yaml"
+    recommended_priority: 50
+    estimated_rule_count: 100
+    tags:
+      - custom
+      - filesystem
+      - local

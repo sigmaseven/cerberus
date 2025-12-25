@@ -4,8 +4,24 @@ import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [react()],
+export default defineConfig(({ mode }) => ({
+  plugins: [
+    react(),
+    // Remove unsafe-eval from CSP in production builds
+    {
+      name: 'html-transform-csp',
+      transformIndexHtml(html) {
+        if (mode === 'production') {
+          // Remove 'unsafe-eval' from CSP for production security
+          return html.replace(
+            "script-src 'self' 'unsafe-eval';",
+            "script-src 'self';"
+          );
+        }
+        return html;
+      },
+    },
+  ],
   esbuild: {
     // Skip TypeScript checking during build
     tsconfigRaw: {
@@ -27,6 +43,16 @@ export default defineConfig({
     minify: 'esbuild',
     sourcemap: false, // Disable sourcemaps for production
     rollupOptions: {
+      external: [
+        // CodeMirror is optional and not currently installed
+        'codemirror',
+        '@codemirror/state',
+        '@codemirror/view',
+        '@codemirror/theme-one-dark',
+        '@codemirror/autocomplete',
+        '@codemirror/language',
+        '@codemirror/lang-javascript',
+      ],
       output: {
         // Code splitting for better caching
         manualChunks: {
@@ -51,12 +77,13 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
   },
   server: {
+    host: '0.0.0.0', // Listen on all interfaces (IPv4 and IPv6)
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:8081',
+        target: 'http://localhost:8080',
         changeOrigin: true,
       },
     },
   },
-})
+}))

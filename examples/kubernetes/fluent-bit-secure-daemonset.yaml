@@ -1,0 +1,235 @@
+---
+# ConfigMap for TLS certificates (create secret from actual certs in production)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: fluent-bit-tls
+  namespace: logging
+type: Opaque
+data:
+  # Base64-encoded CA certificate
+  ca.crt: LS0tLS1CRUdJTi...
+  # Base64-encoded client certificate
+  client.crt: LS0tLS1CRUdJTi...
+  # Base64-encoded client key
+  client.key: LS0tLS1CRUdJTi...
+
+---
+# Secret for shared key authentication
+apiVersion: v1
+kind: Secret
+metadata:
+  name: fluent-bit-auth
+  namespace: logging
+type: Opaque
+stringData:
+  shared-key: "your-secure-shared-secret-key"
+
+---
+# ConfigMap for secure Fluent Bit configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit-secure-config
+  namespace: logging
+  labels:
+    k8s-app: fluent-bit
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush         5
+        Daemon        Off
+        Log_Level     info
+        Parsers_File  parsers.conf
+        HTTP_Server   On
+        HTTP_Listen   0.0.0.0
+        HTTP_Port     2020
+
+    [INPUT]
+        Name              tail
+        Tag               kube.*
+        Path              /var/log/containers/*.log
+        Parser            docker
+        DB                /var/log/flb_kube.db
+        Mem_Buf_Limit     50MB
+        Skip_Long_Lines   On
+        Refresh_Interval  10
+
+    [FILTER]
+        Name                kubernetes
+        Match               kube.*
+        Kube_URL            https://kubernetes.default.svc:443
+        Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
+        Kube_Tag_Prefix     kube.var.log.containers.
+        Merge_Log           On
+        Keep_Log            Off
+        K8S-Logging.Parser  On
+        K8S-Logging.Exclude On
+        Labels              On
+        Annotations         On
+
+    [FILTER]
+        Name        modify
+        Match       kube.*
+        Add         cluster_name ${CLUSTER_NAME}
+        Add         cluster_region ${CLUSTER_REGION}
+        Add         security_enabled true
+
+    # Filter out non-security relevant logs (optional)
+    [FILTER]
+        Name        grep
+        Match       kube.*
+        Exclude     kubernetes.namespace_name kube-public
+
+    [OUTPUT]
+        Name        forward
+        Match       kube.*
+        Host        ${CERBERUS_HOST}
+        Port        ${CERBERUS_PORT}
+        Time_as_Integer On
+
+        # TLS Configuration
+        tls                On
+        tls.verify         On
+        tls.ca_file        /fluent-bit/tls/ca.crt
+        tls.crt_file       /fluent-bit/tls/client.crt
+        tls.key_file       /fluent-bit/tls/client.key
+
+        # Shared key authentication
+        Shared_Key         ${SHARED_KEY}
+
+        # Require acknowledgments
+        Require_ack_response On
+
+        # Retry and buffer settings
+        Retry_Limit    10
+        Workers        4
+
+  parsers.conf: |
+    [PARSER]
+        Name        docker
+        Format      json
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%LZ
+        Time_Keep   On
+
+    [PARSER]
+        Name        json
+        Format      json
+        Time_Key    timestamp
+        Time_Format %Y-%m-%dT%H:%M:%S.%LZ
+        Time_Keep   On
+
+---
+# Secure DaemonSet for Fluent Bit with TLS
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluent-bit-secure
+  namespace: logging
+  labels:
+    k8s-app: fluent-bit-secure
+    version: v1
+spec:
+  selector:
+    matchLabels:
+      k8s-app: fluent-bit-secure
+  template:
+    metadata:
+      labels:
+        k8s-app: fluent-bit-secure
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "2020"
+    spec:
+      serviceAccountName: fluent-bit
+      priorityClassName: system-node-critical
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - operator: "Exists"
+        effect: "NoExecute"
+      - operator: "Exists"
+        effect: "NoSchedule"
+      containers:
+      - name: fluent-bit
+        image: fluent/fluent-bit:2.1
+        imagePullPolicy: Always
+        env:
+        - name: CERBERUS_HOST
+          value: "cerberus.default.svc.cluster.local"
+        - name: CERBERUS_PORT
+          value: "24225"
+        - name: CLUSTER_NAME
+          value: "production-cluster"
+        - name: CLUSTER_REGION
+          value: "us-east-1"
+        - name: SHARED_KEY
+          valueFrom:
+            secretKeyRef:
+              name: fluent-bit-auth
+              key: shared-key
+        ports:
+        - containerPort: 2020
+          name: http
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 2020
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 2020
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - name: varlog
+          mountPath: /var/log
+          readOnly: true
+        - name: varlibdockercontainers
+          mountPath: /var/lib/docker/containers
+          readOnly: true
+        - name: fluent-bit-config
+          mountPath: /fluent-bit/etc/
+        - name: fluent-bit-tls
+          mountPath: /fluent-bit/tls
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: varlibdockercontainers
+        hostPath:
+          path: /var/lib/docker/containers
+      - name: fluent-bit-config
+        configMap:
+          name: fluent-bit-secure-config
+      - name: fluent-bit-tls
+        secret:
+          secretName: fluent-bit-tls
+      - name: tmp
+        emptyDir: {}

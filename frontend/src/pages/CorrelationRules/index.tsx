@@ -28,6 +28,7 @@ import { CorrelationRule, ImportResult } from '../../types';
 import { CorrelationRuleForm } from '../../components/forms/CorrelationRuleForm';
 import ExportDialog from '../../components/import-export/ExportDialog';
 import ImportDialog from '../../components/import-export/ImportDialog';
+import { ProtectedComponent } from '../../components/ProtectedComponent';
 
 function CorrelationRules() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -236,14 +237,17 @@ function CorrelationRules() {
       </Typography>
 
        <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-         <Button
-           variant="contained"
-           color="primary"
-           startIcon={<AddIcon />}
-           onClick={() => setCreateDialogOpen(true)}
-         >
-           Create Correlation Rule
-         </Button>
+         {/* TASK 3.6: Protect Create Correlation Rule button with write:rules permission */}
+         <ProtectedComponent permission="write:rules">
+           <Button
+             variant="contained"
+             color="primary"
+             startIcon={<AddIcon />}
+             onClick={() => setCreateDialogOpen(true)}
+           >
+             Create Correlation Rule
+           </Button>
+         </ProtectedComponent>
 
          <Button
            variant="outlined"
@@ -316,31 +320,37 @@ function CorrelationRules() {
                 </TableCell>
                 <TableCell sx={{ minWidth: 160 }}>
                   <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      startIcon={<EditIcon />}
-                      onClick={() => handleEditRule(rule)}
-                      sx={{
-                        color: '#00ff00',
-                        borderColor: '#00ff00',
-                        '&:hover': {
-                          borderColor: '#00cc00',
-                          backgroundColor: 'rgba(0, 255, 0, 0.08)',
-                        },
-                      }}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      color="error"
-                      startIcon={<DeleteIcon />}
-                      onClick={() => handleDeleteRule(rule)}
-                    >
-                      Delete
-                    </Button>
+                    {/* TASK 3.6: Protect Edit button with write:rules permission */}
+                    <ProtectedComponent permission="write:rules">
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<EditIcon />}
+                        onClick={() => handleEditRule(rule)}
+                        sx={{
+                          color: '#00ff00',
+                          borderColor: '#00ff00',
+                          '&:hover': {
+                            borderColor: '#00cc00',
+                            backgroundColor: 'rgba(0, 255, 0, 0.08)',
+                          },
+                        }}
+                      >
+                        Edit
+                      </Button>
+                    </ProtectedComponent>
+                    {/* TASK 3.6: Protect Delete button with write:rules permission */}
+                    <ProtectedComponent permission="write:rules">
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="error"
+                        startIcon={<DeleteIcon />}
+                        onClick={() => handleDeleteRule(rule)}
+                      >
+                        Delete
+                      </Button>
+                    </ProtectedComponent>
                   </Box>
                 </TableCell>
               </TableRow>
@@ -428,15 +438,26 @@ function CorrelationRules() {
       {/* Snackbar for notifications */}
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={4000}
+        autoHideDuration={snackbar.severity === 'error' ? 10000 : 4000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
         <Alert
           onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
-          sx={{ width: '100%' }}
+          sx={{
+            width: '100%',
+            maxWidth: snackbar.severity === 'error' ? '600px' : '400px',
+            '& .MuiAlert-message': {
+              whiteSpace: 'pre-wrap',
+              fontFamily: snackbar.severity === 'error' ? 'monospace' : 'inherit',
+              fontSize: snackbar.severity === 'error' ? '0.85rem' : 'inherit',
+              maxHeight: '300px',
+              overflow: 'auto',
+            }
+          }}
         >
-          {snackbar.message}
+          {snackbar.message.replace(/\\n/g, '\n').replace(/\\t/g, '\t')}
         </Alert>
       </Snackbar>
     </Box>

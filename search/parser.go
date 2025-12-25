@@ -2,7 +2,6 @@ package search
 
 import (
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -112,18 +111,45 @@ func (p *Parser) tokenize() error {
 			continue
 		}
 
-		// Logical operators
-		if strings.HasPrefix(input[pos:], "AND") {
+		// Operators (must check BEFORE logical operators to handle "not exists", "not in")
+		// Use lowercase for comparison, but check case-insensitively for text operators
+		operators := []string{
+			"not_equals", "not in", "not exists",
+			"equals", "contains", "startswith", "endswith", "matches",
+			"exists", "in",
+			">=", "<=", "!=", "~=",
+			"gte", "lte", "gt", "lt",
+			"=", ">", "<",
+		}
+
+		matched := false
+		inputLower := strings.ToLower(input[pos:])
+		for _, op := range operators {
+			if strings.HasPrefix(inputLower, op) && (pos+len(op) >= len(input) || !isAlphaNum(input[pos+len(op)])) {
+				// Store operator in lowercase (normalized form)
+				p.tokens = append(p.tokens, Token{Type: TokenOperator, Value: op, Pos: pos})
+				pos += len(op)
+				matched = true
+				break
+			}
+		}
+		if matched {
+			continue
+		}
+
+		// Logical operators (case-insensitive) - checked AFTER compound operators like "not exists"
+		upperInput := strings.ToUpper(input[pos:])
+		if strings.HasPrefix(upperInput, "AND") && (pos+3 >= len(input) || !isAlphaNum(input[pos+3])) {
 			p.tokens = append(p.tokens, Token{Type: TokenLogic, Value: "AND", Pos: pos})
 			pos += 3
 			continue
 		}
-		if strings.HasPrefix(input[pos:], "OR") {
+		if strings.HasPrefix(upperInput, "OR") && (pos+2 >= len(input) || !isAlphaNum(input[pos+2])) {
 			p.tokens = append(p.tokens, Token{Type: TokenLogic, Value: "OR", Pos: pos})
 			pos += 2
 			continue
 		}
-		if strings.HasPrefix(input[pos:], "NOT") {
+		if strings.HasPrefix(upperInput, "NOT") && (pos+3 >= len(input) || !isAlphaNum(input[pos+3])) {
 			p.tokens = append(p.tokens, Token{Type: TokenLogic, Value: "NOT", Pos: pos})
 			pos += 3
 			continue
@@ -136,29 +162,6 @@ func (p *Parser) tokenize() error {
 		if strings.HasPrefix(input[pos:], "||") {
 			p.tokens = append(p.tokens, Token{Type: TokenLogic, Value: "OR", Pos: pos})
 			pos += 2
-			continue
-		}
-
-		// Operators (must check before field names)
-		operators := []string{
-			"not_equals", "not in", "not exists",
-			"equals", "contains", "startswith", "endswith", "matches",
-			"exists", "in",
-			">=", "<=", "!=", "~=",
-			"gte", "lte", "gt", "lt",
-			"=", ">", "<",
-		}
-
-		matched := false
-		for _, op := range operators {
-			if strings.HasPrefix(input[pos:], op) && (pos+len(op) >= len(input) || !isAlphaNum(input[pos+len(op)])) {
-				p.tokens = append(p.tokens, Token{Type: TokenOperator, Value: op, Pos: pos})
-				pos += len(op)
-				matched = true
-				break
-			}
-		}
-		if matched {
 			continue
 		}
 
@@ -248,8 +251,10 @@ func (p *Parser) isNextTokenOperator(pos int, input string) bool {
 		"contains", "startswith", "endswith", "matches", "in", "not in", "exists", "not exists",
 		"gt", "lt", "gte", "lte"}
 
+	// Check case-insensitively for text operators
+	inputLower := strings.ToLower(input[pos:])
 	for _, op := range operators {
-		if strings.HasPrefix(input[pos:], op) {
+		if strings.HasPrefix(inputLower, op) {
 			return true
 		}
 	}

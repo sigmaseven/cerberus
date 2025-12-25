@@ -396,6 +396,60 @@ Use `k8s/deployment.yaml` for K8s deployment.
 - `GET /api/listeners`: Get current listener configuration.
 - `GET /metrics`: Prometheus metrics.
 
+## Testing
+
+Cerberus includes comprehensive test coverage across unit tests, integration tests, end-to-end tests, and security tests.
+
+### Quick Start
+
+```bash
+# Run all tests
+go test ./...
+
+# Run with coverage
+go test ./... -cover
+
+# Run integration tests
+go test -tags=integration ./tests/integration/...
+
+# Run with race detector
+go test -race ./...
+
+# Generate coverage report
+go test ./... -coverprofile=coverage.out
+go tool cover -html=coverage.out -o coverage.html
+```
+
+### Coverage
+
+![Coverage](https://codecov.io/gh/your-org/cerberus/branch/main/graph/badge.svg)
+
+Current coverage: **90%+** (target maintained in CI/CD)
+
+### Documentation
+
+- **[TESTING.md](TESTING.md)** - Comprehensive testing guide
+- **[docs/testing/](docs/testing/)** - Testing documentation:
+  - [Test Data Setup](docs/testing/test-data-setup.md)
+  - [CI/CD Integration](docs/testing/ci-cd-integration.md)
+  - [Mocking Guide](docs/testing/mocking-guide.md)
+  - [Security Testing](docs/testing/security-testing.md)
+
+### Test Types
+
+- **Unit Tests:** Fast, isolated tests with mocked dependencies
+- **Integration Tests:** Tests with real dependencies (databases, containers)
+- **End-to-End Tests:** Complete workflow testing from ingestion to alert response
+- **Security Tests:** OWASP Top 10 coverage, injection testing, fuzzing
+- **BDD Tests:** Behavior-driven tests using Godog (Gherkin)
+
+### CI/CD
+
+Tests run automatically on:
+- **Pull requests:** All unit and integration tests
+- **Push to main:** Full test suite with coverage upload
+- **Nightly:** Extended fuzzing and performance benchmarks
+
 ## Monitoring
 
 - **Metrics**: Events ingested, alerts generated, actions executed, processing duration.

@@ -20,7 +20,10 @@ import {
 } from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { apiService } from '../../services/api';
-import { DashboardStats, ChartData } from '../../types';
+import { DashboardStats } from '../../types';
+import ListenersWidget from './components/ListenersWidget';
+import FeedStatsWidget from './components/FeedStatsWidget';
+import ErrorBoundary from '../../components/ErrorBoundary';
 
 const StatCard = ({
   title,
@@ -53,8 +56,12 @@ const StatCard = ({
 );
 
 function Dashboard() {
-  const [realtimeStats, setRealtimeStats] = useState<DashboardStats | null>(null);
-  const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
+  // WebSocket state - setters prefixed with _ as WebSocket is currently disabled
+  const [realtimeStats, _setRealtimeStats] = useState<DashboardStats | null>(null);
+  const [isWebSocketConnected, _setIsWebSocketConnected] = useState(false);
+  // Suppress unused variable warnings for disabled WebSocket feature
+  void _setRealtimeStats;
+  void _setIsWebSocketConnected;
 
   // Fetch dashboard stats from API
   const { data: stats, isLoading: statsLoading, error: statsError } = useQuery({
@@ -179,7 +186,7 @@ function Dashboard() {
               <Typography variant="h6" gutterBottom>
                 Events Over Time
               </Typography>
-              <Box sx={{ height: { xs: 250, sm: 300 } }}>
+              <Box sx={{ width: '100%', height: { xs: 250, sm: 300 } }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData || []}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -256,6 +263,40 @@ function Dashboard() {
               </Box>
             </CardContent>
           </Card>
+        </Grid>
+      </Grid>
+
+      {/* Widgets Section - Listeners and Feed Stats */}
+      <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ mt: 0 }}>
+        <Grid item xs={12} md={6} lg={4}>
+          <ErrorBoundary
+            fallback={
+              <Card>
+                <CardContent>
+                  <Alert severity="warning">
+                    Listener widget unavailable. Please refresh the page.
+                  </Alert>
+                </CardContent>
+              </Card>
+            }
+          >
+            <ListenersWidget />
+          </ErrorBoundary>
+        </Grid>
+        <Grid item xs={12} md={6} lg={4}>
+          <ErrorBoundary
+            fallback={
+              <Card>
+                <CardContent>
+                  <Alert severity="warning">
+                    Feed stats widget unavailable. Please refresh the page.
+                  </Alert>
+                </CardContent>
+              </Card>
+            }
+          >
+            <FeedStatsWidget />
+          </ErrorBoundary>
         </Grid>
       </Grid>
     </Box>

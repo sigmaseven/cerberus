@@ -1,0 +1,616 @@
+package config
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// TestLoadConfig_WithFile tests loading configuration from a file
+func TestLoadConfig_WithFile(t *testing.T) {
+	// Save original config file if it exists
+	originalConfig := "config.yaml"
+	backupConfig := "config.yaml.test_backup"
+
+	if _, err := os.Stat(originalConfig); err == nil {
+		err := os.Rename(originalConfig, backupConfig)
+		require.NoError(t, err)
+		defer os.Rename(backupConfig, originalConfig)
+	}
+
+	// Create test config
+	testConfig := `
+mongodb:
+  uri: "mongodb://localhost:27017"
+  database: "cerberus_test"
+  enabled: true
+  batch_insert_timeout: 5
+  max_pool_size: 10
+
+api:
+  port: 8081
+  version: "v1"
+  trust_proxy: false
+  allowed_origins:
+    - "http://localhost:3000"
+  rate_limit:
+    requests_per_second: 5
+    burst: 10
+    max_auth_failures: 5
+
+listeners:
+  syslog:
+    port: 514
+    host: "0.0.0.0"
+  cef:
+    port: 515
+    host: "0.0.0.0"
+  json:
+    port: 8080
+    host: "0.0.0.0"
+
+retention:
+  events: 30
+  alerts: 90
+
+auth:
+  enabled: false
+  bcrypt_cost: 10
+  jwt_expiry: 24h
+
+engine:
+  channel_buffer_size: 1000
+  worker_count: 4
+  action_worker_count: 2
+  correlation_state_ttl: 3600
+`
+	err := os.WriteFile(originalConfig, []byte(testConfig), 0644)
+	require.NoError(t, err)
+	defer os.Remove(originalConfig)
+
+	// Load config
+	cfg, err := LoadConfig()
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+
+	// Validate loaded values
+	assert.Equal(t, "mongodb://localhost:27017", cfg.MongoDB.URI)
+	assert.Equal(t, "cerberus_test", cfg.MongoDB.Database)
+	assert.True(t, cfg.MongoDB.Enabled)
+	assert.Equal(t, 8081, cfg.API.Port)
+	assert.Equal(t, "v1", cfg.API.Version)
+	assert.Equal(t, 514, cfg.Listeners.Syslog.Port)
+	assert.Equal(t, 30, cfg.Retention.Events)
+	assert.Equal(t, 90, cfg.Retention.Alerts)
+	assert.Equal(t, 24*time.Hour, cfg.Auth.JWTExpiry)
+}
+
+// TestLoadConfig_MissingFile tests behavior with missing config file
+func TestLoadConfig_MissingFile(t *testing.T) {
+	// Ensure config file doesn't exist
+	originalConfig := "config.yaml"
+	if _, err := os.Stat(originalConfig); err == nil {
+		backupConfig := "config.yaml.test_backup2"
+		err := os.Rename(originalConfig, backupConfig)
+		require.NoError(t, err)
+		defer os.Rename(backupConfig, originalConfig)
+	}
+
+	// Should still load with defaults (viper handles this)
+	cfg, err := LoadConfig()
+	// May return error or use defaults depending on implementation
+	if err != nil {
+		// Expected behavior - config file required
+		assert.Error(t, err)
+	} else {
+		// Falls back to defaults
+		assert.NotNil(t, cfg)
+	}
+}
+
+// TestValidateConfig_ValidConfiguration tests validation with valid config
+func TestValidateConfig_ValidConfiguration(t *testing.T) {
+	cfg := &Config{}
+	cfg.MongoDB.URI = "mongodb://localhost:27017"
+	cfg.MongoDB.Database = "cerberus"
+	cfg.MongoDB.Enabled = true
+
+	cfg.Listeners.Syslog.Port = 514
+	cfg.Listeners.Syslog.Host = "0.0.0.0"
+	cfg.Listeners.CEF.Port = 515
+	cfg.Listeners.CEF.Host = "0.0.0.0"
+	cfg.Listeners.JSON.Port = 8080
+	cfg.Listeners.JSON.Host = "0.0.0.0"
+
+	cfg.API.Port = 8081
+	cfg.API.Version = "v1"
+
+	cfg.Retention.Events = 30
+	cfg.Retention.Alerts = 90
+
+	err := validateConfig(cfg)
+	assert.NoError(t, err)
+}
+
+// TestValidateConfig_InvalidMongoDBURI tests validation with invalid MongoDB URI
+func TestValidateConfig_InvalidMongoDBURI(t *testing.T) {
+	tests := []struct {
+		name string
+		uri  string
+	}{
+		{"empty uri", ""},
+		{"invalid format", "invalid"},
+		{"missing protocol", "localhost:27017"},
+		{"wrong protocol", "http://localhost:27017"},
+		{"no host", "mongodb://"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{}
+			cfg.MongoDB.URI = tt.uri
+			cfg.MongoDB.Database = "cerberus"
+			cfg.MongoDB.Enabled = true
+			cfg.API.Port = 8081
+			cfg.Listeners.Syslog.Port = 514
+			cfg.Listeners.Syslog.Host = "0.0.0.0"
+
+			err := validateConfig(cfg)
+			assert.Error(t, err, "Expected error for URI: %s", tt.uri)
+		})
+	}
+}
+
+// TestValidateConfig_InvalidPorts tests validation with invalid port numbers
+func TestValidateConfig_InvalidPorts(t *testing.T) {
+	tests := []struct {
+		name     string
+		setPort  func(*Config)
+		wantErr  bool
+	}{
+		{
+			name: "negative API port",
+			setPort: func(c *Config) {
+				c.API.Port = -1
+			},
+			wantErr: true,
+		},
+		{
+			name: "zero API port",
+			setPort: func(c *Config) {
+				c.API.Port = 0
+			},
+			wantErr: true,
+		},
+		{
+			name: "port too high",
+			setPort: func(c *Config) {
+				c.API.Port = 99999
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid syslog port",
+			setPort: func(c *Config) {
+				c.Listeners.Syslog.Port = -1
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid port 8081",
+			setPort: func(c *Config) {
+				c.API.Port = 8081
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{}
+			cfg.MongoDB.URI = "mongodb://localhost:27017"
+			cfg.MongoDB.Database = "cerberus"
+			cfg.MongoDB.Enabled = true
+			cfg.API.Port = 8081
+			cfg.Listeners.Syslog.Port = 514
+			cfg.Listeners.Syslog.Host = "0.0.0.0"
+			cfg.Listeners.CEF.Port = 515
+			cfg.Listeners.CEF.Host = "0.0.0.0"
+			cfg.Listeners.JSON.Port = 8080
+			cfg.Listeners.JSON.Host = "0.0.0.0"
+
+			tt.setPort(cfg)
+
+			err := validateConfig(cfg)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestValidateConfig_Authentication tests authentication configuration validation
+func TestValidateConfig_Authentication(t *testing.T) {
+	tests := []struct {
+		name    string
+		setup   func(*Config)
+		wantErr bool
+	}{
+		{
+			name: "auth disabled - valid",
+			setup: func(c *Config) {
+				c.Auth.Enabled = false
+			},
+			wantErr: false,
+		},
+		{
+			name: "auth enabled with password - valid after hash",
+			setup: func(c *Config) {
+				c.Auth.Enabled = true
+				c.Auth.Username = "admin"
+				c.Auth.HashedPassword = "$2a$10$hashvalue"
+			},
+			wantErr: false,
+		},
+		{
+			name: "auth enabled without username - invalid",
+			setup: func(c *Config) {
+				c.Auth.Enabled = true
+				c.Auth.Username = ""
+				c.Auth.HashedPassword = "$2a$10$hashvalue"
+			},
+			wantErr: true,
+		},
+		{
+			name: "auth enabled without password - invalid",
+			setup: func(c *Config) {
+				c.Auth.Enabled = true
+				c.Auth.Username = "admin"
+				c.Auth.HashedPassword = ""
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{}
+			cfg.MongoDB.URI = "mongodb://localhost:27017"
+			cfg.MongoDB.Database = "cerberus"
+			cfg.MongoDB.Enabled = true
+			cfg.API.Port = 8081
+			cfg.Listeners.Syslog.Port = 514
+			cfg.Listeners.Syslog.Host = "0.0.0.0"
+
+			tt.setup(cfg)
+
+			err := validateConfig(cfg)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestValidateConfig_Retention tests retention policy validation
+func TestValidateConfig_Retention(t *testing.T) {
+	tests := []struct {
+		name        string
+		eventDays   int
+		alertDays   int
+		wantErr     bool
+	}{
+		{"valid retention", 30, 90, false},
+		{"zero events", 0, 90, false}, // 0 might mean no retention
+		{"zero alerts", 30, 0, false},
+		{"negative events", -1, 90, true},
+		{"negative alerts", 30, -1, true},
+		{"very large retention", 36500, 36500, false}, // 100 years
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{}
+			cfg.MongoDB.URI = "mongodb://localhost:27017"
+			cfg.MongoDB.Database = "cerberus"
+			cfg.MongoDB.Enabled = true
+			cfg.API.Port = 8081
+			cfg.Listeners.Syslog.Port = 514
+			cfg.Listeners.Syslog.Host = "0.0.0.0"
+			cfg.Retention.Events = tt.eventDays
+			cfg.Retention.Alerts = tt.alertDays
+
+			err := validateConfig(cfg)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestValidateConfig_EmptyHosts tests validation with empty host configurations
+func TestValidateConfig_EmptyHosts(t *testing.T) {
+	cfg := &Config{}
+	cfg.MongoDB.URI = "mongodb://localhost:27017"
+	cfg.MongoDB.Database = "cerberus"
+	cfg.MongoDB.Enabled = true
+	cfg.API.Port = 8081
+	cfg.Listeners.Syslog.Port = 514
+	cfg.Listeners.Syslog.Host = "" // Empty host
+
+	err := validateConfig(cfg)
+	assert.Error(t, err, "Empty listener host should cause validation error")
+}
+
+// TestValidateConfig_TLSConfiguration tests TLS settings validation
+func TestValidateConfig_TLSConfiguration(t *testing.T) {
+	tests := []struct {
+		name     string
+		setup    func(*Config)
+		wantErr  bool
+	}{
+		{
+			name: "TLS disabled - valid",
+			setup: func(c *Config) {
+				c.API.TLS = false
+			},
+			wantErr: false,
+		},
+		{
+			name: "TLS enabled without cert/key - may be invalid",
+			setup: func(c *Config) {
+				c.API.TLS = true
+				c.API.CertFile = ""
+				c.API.KeyFile = ""
+			},
+			// Depending on implementation, this might be allowed (cert loaded elsewhere)
+			wantErr: false,
+		},
+		{
+			name: "TLS with cert but no key",
+			setup: func(c *Config) {
+				c.API.TLS = true
+				c.API.CertFile = "server.crt"
+				c.API.KeyFile = ""
+			},
+			wantErr: false, // File existence checked at runtime
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{}
+			cfg.MongoDB.URI = "mongodb://localhost:27017"
+			cfg.MongoDB.Database = "cerberus"
+			cfg.MongoDB.Enabled = true
+			cfg.API.Port = 8081
+			cfg.Listeners.Syslog.Port = 514
+			cfg.Listeners.Syslog.Host = "0.0.0.0"
+
+			tt.setup(cfg)
+
+			err := validateConfig(cfg)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				// TLS file validation might happen at runtime, not config validation
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestValidateAndHash_PasswordHashing tests password hashing functionality
+func TestValidateAndHash_PasswordHashing(t *testing.T) {
+	cfg := &Config{}
+	cfg.MongoDB.URI = "mongodb://localhost:27017"
+	cfg.MongoDB.Database = "cerberus"
+	cfg.MongoDB.Enabled = true
+	cfg.API.Port = 8081
+	cfg.Listeners.Syslog.Port = 514
+	cfg.Listeners.Syslog.Host = "0.0.0.0"
+	cfg.Auth.Enabled = true
+	cfg.Auth.Username = "admin"
+	cfg.Auth.Password = "test_password_123"
+	cfg.Auth.BcryptCost = 10
+
+	err := validateAndHash(cfg)
+	require.NoError(t, err)
+
+	// Verify password was hashed
+	assert.NotEmpty(t, cfg.Auth.HashedPassword)
+	assert.NotEqual(t, "test_password_123", cfg.Auth.HashedPassword)
+
+	// Verify password field was cleared
+	assert.Empty(t, cfg.Auth.Password)
+
+	// Verify hash format (bcrypt hashes start with $2a$)
+	assert.Contains(t, cfg.Auth.HashedPassword, "$2a$")
+}
+
+// TestValidateAndHash_NoPas sword tests when password not needed
+func TestValidateAndHash_NoPassword(t *testing.T) {
+	cfg := &Config{}
+	cfg.MongoDB.URI = "mongodb://localhost:27017"
+	cfg.MongoDB.Database = "cerberus"
+	cfg.MongoDB.Enabled = true
+	cfg.API.Port = 8081
+	cfg.Listeners.Syslog.Port = 514
+	cfg.Listeners.Syslog.Host = "0.0.0.0"
+	cfg.Auth.Enabled = false
+
+	err := validateAndHash(cfg)
+	assert.NoError(t, err)
+	assert.Empty(t, cfg.Auth.HashedPassword)
+}
+
+// TestConfig_DefaultValues tests that default values are set correctly
+func TestConfig_DefaultValues(t *testing.T) {
+	cfg, err := LoadConfig()
+
+	// If config file doesn't exist, this might error
+	if err != nil {
+		t.Skip("Skipping default values test - config file required")
+	}
+
+	require.NotNil(t, cfg)
+
+	// Verify reasonable defaults (these depend on your config.yaml)
+	assert.NotZero(t, cfg.API.Port, "API port should be set")
+	assert.NotEmpty(t, cfg.API.Version, "API version should be set")
+	assert.NotZero(t, cfg.Listeners.Syslog.Port, "Syslog port should be set")
+}
+
+// TestConfig_EnvironmentOverrides tests environment variable overrides
+func TestConfig_EnvironmentOverrides(t *testing.T) {
+	// Set environment variables
+	os.Setenv("CERBERUS_MONGODB_URI", "mongodb://env-host:27017")
+	os.Setenv("CERBERUS_API_PORT", "9999")
+	defer func() {
+		os.Unsetenv("CERBERUS_MONGODB_URI")
+		os.Unsetenv("CERBERUS_API_PORT")
+	}()
+
+	// This test assumes viper is configured to read env vars
+	// Actual behavior depends on implementation
+	t.Skip("Environment override test requires specific viper configuration")
+}
+
+// TestValidateConfig_AllowedOrigins tests CORS configuration
+func TestValidateConfig_AllowedOrigins(t *testing.T) {
+	cfg := &Config{}
+	cfg.MongoDB.URI = "mongodb://localhost:27017"
+	cfg.MongoDB.Database = "cerberus"
+	cfg.MongoDB.Enabled = true
+	cfg.API.Port = 8081
+	cfg.Listeners.Syslog.Port = 514
+	cfg.Listeners.Syslog.Host = "0.0.0.0"
+	cfg.API.AllowedOrigins = []string{
+		"http://localhost:3000",
+		"https://cerberus.example.com",
+	}
+
+	err := validateConfig(cfg)
+	assert.NoError(t, err)
+}
+
+// TestValidateConfig_RateLimitSettings tests rate limit configuration
+func TestValidateConfig_RateLimitSettings(t *testing.T) {
+	tests := []struct {
+		name             string
+		requestsPerSec   int
+		burst            int
+		maxAuthFailures  int
+		wantErr          bool
+	}{
+		{"valid settings", 100, 200, 5, false},
+		{"zero requests per second", 0, 200, 5, false}, // Might disable rate limiting
+		{"negative requests", -1, 200, 5, false}, // Implementation specific
+		{"very high limits", 1000000, 2000000, 100, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{}
+			cfg.MongoDB.URI = "mongodb://localhost:27017"
+			cfg.MongoDB.Database = "cerberus"
+			cfg.MongoDB.Enabled = true
+			cfg.API.Port = 8081
+			cfg.Listeners.Syslog.Port = 514
+			cfg.Listeners.Syslog.Host = "0.0.0.0"
+			cfg.API.RateLimit.RequestsPerSecond = tt.requestsPerSec
+			cfg.API.RateLimit.Burst = tt.burst
+			cfg.API.RateLimit.MaxAuthFailures = tt.maxAuthFailures
+
+			err := validateConfig(cfg)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				// Rate limit validation might be lenient
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestValidateConfig_FilePaths tests file path validation for rules and correlation rules
+func TestValidateConfig_FilePaths(t *testing.T) {
+	// Create temporary directory and files for testing
+	tempDir := t.TempDir()
+	validRulesFile := filepath.Join(tempDir, "rules.json")
+	validCorrFile := filepath.Join(tempDir, "correlation.json")
+
+	// Create empty files
+	err := os.WriteFile(validRulesFile, []byte("[]"), 0644)
+	require.NoError(t, err)
+	err = os.WriteFile(validCorrFile, []byte("[]"), 0644)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		rulesFile   string
+		corrFile    string
+		mongoEnabled bool
+		wantErr     bool
+	}{
+		{
+			name:         "valid files with MongoDB disabled",
+			rulesFile:    validRulesFile,
+			corrFile:     validCorrFile,
+			mongoEnabled: false,
+			wantErr:      false,
+		},
+		{
+			name:         "MongoDB enabled - files optional",
+			rulesFile:    "",
+			corrFile:     "",
+			mongoEnabled: true,
+			wantErr:      false,
+		},
+		{
+			name:         "MongoDB disabled - missing rules file",
+			rulesFile:    filepath.Join(tempDir, "nonexistent.json"),
+			corrFile:     validCorrFile,
+			mongoEnabled: false,
+			wantErr:      true,
+		},
+		{
+			name:         "invalid file extension",
+			rulesFile:    filepath.Join(tempDir, "rules.txt"),
+			corrFile:     validCorrFile,
+			mongoEnabled: false,
+			wantErr:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{}
+			cfg.MongoDB.URI = "mongodb://localhost:27017"
+			cfg.MongoDB.Database = "cerberus"
+			cfg.MongoDB.Enabled = tt.mongoEnabled
+			cfg.API.Port = 8081
+			cfg.Listeners.Syslog.Port = 514
+			cfg.Listeners.Syslog.Host = "0.0.0.0"
+			cfg.Rules.File = tt.rulesFile
+			cfg.CorrelationRules.File = tt.corrFile
+
+			err := validateConfig(cfg)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

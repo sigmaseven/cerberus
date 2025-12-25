@@ -1,0 +1,190 @@
+name: Requirements Coverage Gap Analysis
+
+on:
+  pull_request:
+    paths:
+      - 'docs/requirements/**'
+      - '**/*_test.go'
+      - 'tools/gap-analyzer/**'
+  push:
+    branches:
+      - main
+  schedule:
+    # Run weekly on Monday at 9:00 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+    inputs:
+      threshold:
+        description: 'Minimum coverage threshold percentage'
+        required: false
+        default: '80'
+
+jobs:
+  gap-analysis:
+    name: Analyze Requirements Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Full history for trend analysis
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+          cache: true
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Build Gap Analyzer
+        run: |
+          echo "Building gap analyzer tool..."
+          go build -v -o gap-analyzer ./tools/gap-analyzer
+          chmod +x gap-analyzer
+
+      - name: Run Gap Analysis
+        id: analysis
+        run: |
+          echo "Running requirements coverage gap analysis..."
+          THRESHOLD="${{ github.event.inputs.threshold || '80' }}"
+          ./gap-analyzer -verbose -check -threshold "$THRESHOLD" 2>&1 | tee analysis-output.log || true
+
+          # Capture exit code
+          EXIT_CODE=$?
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+
+          # Extract summary metrics
+          COVERAGE=$(grep "Overall Coverage:" analysis-output.log | awk '{print $3}' | tr -d '%')
+          P0_GAPS=$(grep "P0 Gaps:" analysis-output.log | awk '{print $3}')
+          P1_GAPS=$(grep "P1 Gaps:" analysis-output.log | awk '{print $3}')
+
+          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+          echo "p0_gaps=$P0_GAPS" >> $GITHUB_OUTPUT
+          echo "p1_gaps=$P1_GAPS" >> $GITHUB_OUTPUT
+
+      - name: Upload Reports
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: gap-analysis-reports
+          path: |
+            REQUIREMENTS_GAP_ANALYSIS.md
+            gap-analysis.json
+            gap-analysis.yaml
+            coverage-badge.json
+            analysis-output.log
+          retention-days: 90
+
+      - name: Create Job Summary
+        if: always()
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          ## Requirements Coverage Analysis Results
+
+          | Metric | Value |
+          |--------|-------|
+          | Overall Coverage | ${{ steps.analysis.outputs.coverage }}% |
+          | P0 Critical Gaps | ${{ steps.analysis.outputs.p0_gaps }} |
+          | P1 High Gaps | ${{ steps.analysis.outputs.p1_gaps }} |
+          | Status | ${{ steps.analysis.outputs.exit_code == '0' && '✅ PASSED' || '❌ FAILED' }} |
+
+          ### Coverage Breakdown
+          EOF
+
+          # Extract category stats from report
+          if [ -f REQUIREMENTS_GAP_ANALYSIS.md ]; then
+            echo "See full report in artifacts." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Comment PR with Summary
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+
+            // Read the markdown report
+            if (!fs.existsSync('REQUIREMENTS_GAP_ANALYSIS.md')) {
+              console.log('Report file not found, skipping PR comment');
+              return;
+            }
+
+            const report = fs.readFileSync('REQUIREMENTS_GAP_ANALYSIS.md', 'utf8');
+
+            // Extract executive summary
+            const summaryMatch = report.match(/## Executive Summary([\s\S]*?)---/);
+            const summary = summaryMatch ? summaryMatch[1] : 'Summary not available';
+
+            // Extract critical gaps count
+            const criticalGapsMatch = report.match(/Found \*\*(\d+) critical gaps\*\*/);
+            const criticalGapsCount = criticalGapsMatch ? criticalGapsMatch[1] : '0';
+
+            // Determine emoji based on results
+            const coveragePercent = parseFloat('${{ steps.analysis.outputs.coverage }}');
+            const p0Gaps = parseInt('${{ steps.analysis.outputs.p0_gaps }}');
+            let emoji = '✅';
+            if (p0Gaps > 0) {
+              emoji = '❌';
+            } else if (coveragePercent < 70) {
+              emoji = '⚠️';
+            }
+
+            // Create comment body
+            const commentBody = `${emoji} **Requirements Coverage Analysis**
+
+            ${summary}
+
+            ${criticalGapsCount > 0 ? `⚠️ **${criticalGapsCount} critical gaps** require immediate attention.\n\n` : ''}
+
+            <details>
+            <summary>View Full Report</summary>
+
+            [Download Full Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            </details>
+
+            ---
+            *Analysis completed in workflow run [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})*
+            `;
+
+            // Post comment
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: commentBody
+            });
+
+      - name: Fail if Coverage Below Threshold
+        if: steps.analysis.outputs.exit_code != '0'
+        run: |
+          echo "❌ Gap analysis failed!"
+          echo "Coverage: ${{ steps.analysis.outputs.coverage }}%"
+          echo "P0 Gaps: ${{ steps.analysis.outputs.p0_gaps }}"
+          echo "P1 Gaps: ${{ steps.analysis.outputs.p1_gaps }}"
+          echo ""
+          echo "Review the full report in the artifacts."
+          exit 1
+
+      - name: Archive Historical Data
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          # Commit analysis results to history directory
+          mkdir -p .gap-analysis-history
+          cp gap-analysis.json ".gap-analysis-history/$(date +%Y-%m-%d).json"
+
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Commit if changes exist
+          git add .gap-analysis-history/
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: update gap analysis history [skip ci]"
+            git push
+          fi

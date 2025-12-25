@@ -31,6 +31,8 @@ function Login() {
           flexDirection: 'column',
           alignItems: 'center',
         }}
+        role="main"
+        aria-label="login page"
       >
         <Paper
           elevation={3}
@@ -41,14 +43,16 @@ function Login() {
             alignItems: 'center',
             width: '100%',
           }}
+          role="form"
+          aria-labelledby="login-title"
         >
-          <Typography component="h1" variant="h4" gutterBottom>
+          <Typography id="login-title" component="h1" variant="h4" gutterBottom>
             Cerberus SIEM
           </Typography>
           <Typography variant="body1" color="textSecondary" sx={{ mb: 3 }}>
             Security Information and Event Management
           </Typography>
-          <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
+          <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }} role="status" aria-live="polite">
             Auto-login in progress...
           </Typography>
           <Button
@@ -56,6 +60,7 @@ function Login() {
             color="primary"
             onClick={handleLogin}
             sx={{ mt: 2 }}
+            aria-label="login to dashboard"
           >
             Login (Demo)
           </Button>

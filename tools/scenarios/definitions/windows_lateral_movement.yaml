@@ -1,0 +1,47 @@
+name: "Windows Lateral Movement"
+description: "Successful login followed by privilege enumeration"
+duration: 90s
+source_ip: "192.168.10.100"
+target_user: "helpdesk"
+target_host: "FILE01.corp.local"
+
+events:
+  # Stage 1: Successful login to compromised account
+  - type: windows_successful_login
+    count: 1
+    fields:
+      event_type: windows_successful_login
+      event_id: 4624
+      source_ip: "${SOURCE_IP}"
+      computer_name: "${TARGET_HOST}"
+      target_user: "${TARGET_USER}"
+      logon_type: "3"
+      authentication_package: "NTLM"
+
+  # Stage 2: Enumerate group memberships (reconnaissance)
+  - type: windows_group_membership_changed
+    count: 1
+    delay: 30s
+    fields:
+      event_type: windows_group_membership_changed
+      event_id: 4799
+      computer_name: "${TARGET_HOST}"
+      target_user: "${TARGET_USER}"
+      subject_user: "${TARGET_USER}"
+      group_name: "Domain Admins"
+      action: "enumerated"
+
+expected_alerts:
+  - rule_id: windows_successful_login
+    severity: low
+    min_count: 1
+  - rule_id: windows_group_membership_changed
+    severity: medium
+    min_count: 1
+  - rule_id: windows_lateral_movement
+    severity: high
+    min_count: 1
+
+validation:
+  timeout: 120s
+  check_interval: 5s

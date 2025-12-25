@@ -51,6 +51,20 @@ deps:
 	go mod download
 	go mod tidy
 
+# Integration tests
+integration-test:
+	@echo Running integration tests...
+	go test ./tests/integration/... -v
+
+integration-test-race:
+	@echo Running integration tests with race detector...
+	go test ./tests/integration/... -race -v
+
+integration-test-coverage:
+	@echo Running integration tests with coverage...
+	go test ./tests/integration/... -coverprofile=integration_coverage.out -cover
+	@echo Coverage report: integration_coverage.out
+
 # Install development tools
 dev-tools:
 	@echo Installing development tools...

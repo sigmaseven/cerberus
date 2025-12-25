@@ -1,0 +1,241 @@
+package main
+
+import (
+	"log"
+	"strings"
+	"time"
+
+	"cerberus/config"
+	"cerberus/core"
+	"cerberus/storage"
+
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+)
+
+func main() {
+	// Load config
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+
+	// Create logger
+	logger, _ := zap.NewDevelopment()
+	defer logger.Sync()
+	sugar := logger.Sugar()
+
+	// Connect to ClickHouse
+	clickhouse, err := storage.NewClickHouse(cfg, sugar)
+	if err != nil {
+		log.Fatalf("Failed to connect to ClickHouse: %v", err)
+	}
+	defer clickhouse.Close()
+
+	// Create alert storage channel and storage
+	alertCh := make(chan *core.Alert, 10)
+	alertStorage, err := storage.NewClickHouseAlertStorage(clickhouse, cfg, alertCh, sugar)
+	if err != nil {
+		log.Fatalf("Failed to create alert storage: %v", err)
+	}
+
+	log.Println("\n" + strings.Repeat("=", 70))
+	log.Println("SEVERITY TEST: Inserting 4 alerts (one per severity level)")
+	log.Println(strings.Repeat("=", 70) + "\n")
+
+	timestamp := time.Now().UTC()
+
+	// Test 1: LOW severity - PsExec Named Pipe
+	event1ID := uuid.New().String()
+	event1 := &core.Event{
+		EventID:      event1ID,
+		Timestamp:    timestamp,
+		IngestedAt:   timestamp,
+		ListenerID:   "severity-test-listener",
+		ListenerName: "Severity Test Listener",
+		Source:       "severity-test",
+		SourceFormat: "json",
+		RawData:      `{"EventID": 17, "EventType": "pipe_created", "Computer": "TEST-MACHINE", "PipeName": "\\PSEXESVC", "User": "NT AUTHORITY\\SYSTEM"}`,
+		Fields: map[string]interface{}{
+			"EventID":   17,
+			"EventType": "pipe_created",
+			"Computer":  "TEST-MACHINE",
+			"PipeName":  "\\PSEXESVC",
+			"User":      "NT AUTHORITY\\SYSTEM",
+		},
+	}
+
+	alert1 := &core.Alert{
+		AlertID:        uuid.New().String(),
+		RuleID:         "f3f3a972-f982-40ad-b63c-bca6afdfad7c", // PsExec rule (LOW)
+		EventID:        event1ID,
+		Timestamp:      timestamp,
+		Severity:       "low",
+		Status:         core.AlertStatusNew,
+		Fingerprint:    "psexec-severity-test-low",
+		DuplicateCount: 1,
+		LastSeen:       timestamp,
+		EventIDs:       []string{event1ID},
+		Event:          event1,
+	}
+
+	log.Printf("[1/4] Creating LOW severity alert (PsExec)...")
+	log.Printf("  Rule ID: %s", alert1.RuleID)
+	log.Printf("  Alert ID: %s", alert1.AlertID)
+	log.Printf("  Severity: %s", alert1.Severity)
+	if err := alertStorage.InsertAlert(alert1); err != nil {
+		log.Fatalf("Failed to insert alert 1: %v", err)
+	}
+	log.Println("  ✓ Inserted successfully\n")
+	time.Sleep(500 * time.Millisecond)
+
+	// Test 2: MEDIUM severity - Windows Mail App Mailbox Access
+	event2ID := uuid.New().String()
+	event2 := &core.Event{
+		EventID:      event2ID,
+		Timestamp:    timestamp.Add(1 * time.Second),
+		IngestedAt:   timestamp.Add(1 * time.Second),
+		ListenerID:   "severity-test-listener",
+		ListenerName: "Severity Test Listener",
+		Source:       "severity-test",
+		SourceFormat: "json",
+		RawData:      `{"EventID": 4104, "EventType": "ps_script", "Computer": "TEST-MACHINE", "ScriptBlockText": "Get-ChildItem C:\\Users\\test\\AppData\\Local\\Comms\\Unistore\\data\\mailbox.db"}`,
+		Fields: map[string]interface{}{
+			"EventID":         4104,
+			"EventType":       "ps_script",
+			"Computer":        "TEST-MACHINE",
+			"ScriptBlockText": "Get-ChildItem C:\\Users\\test\\AppData\\Local\\Comms\\Unistore\\data\\mailbox.db",
+			"User":            "TEST-USER",
+		},
+	}
+
+	alert2 := &core.Alert{
+		AlertID:        uuid.New().String(),
+		RuleID:         "4e485d01-e18a-43f6-a46b-ef20496fa9d3", // Windows Mail App rule (MEDIUM)
+		EventID:        event2ID,
+		Timestamp:      timestamp.Add(1 * time.Second),
+		Severity:       "medium",
+		Status:         core.AlertStatusNew,
+		Fingerprint:    "mail-app-severity-test-medium",
+		DuplicateCount: 1,
+		LastSeen:       timestamp.Add(1 * time.Second),
+		EventIDs:       []string{event2ID},
+		Event:          event2,
+	}
+
+	log.Printf("[2/4] Creating MEDIUM severity alert (Mail App Access)...")
+	log.Printf("  Rule ID: %s", alert2.RuleID)
+	log.Printf("  Alert ID: %s", alert2.AlertID)
+	log.Printf("  Severity: %s", alert2.Severity)
+	if err := alertStorage.InsertAlert(alert2); err != nil {
+		log.Fatalf("Failed to insert alert 2: %v", err)
+	}
+	log.Println("  ✓ Inserted successfully\n")
+	time.Sleep(500 * time.Millisecond)
+
+	// Test 3: HIGH severity - File Creation by Office Applications
+	event3ID := uuid.New().String()
+	event3 := &core.Event{
+		EventID:      event3ID,
+		Timestamp:    timestamp.Add(2 * time.Second),
+		IngestedAt:   timestamp.Add(2 * time.Second),
+		ListenerID:   "severity-test-listener",
+		ListenerName: "Severity Test Listener",
+		Source:       "severity-test",
+		SourceFormat: "json",
+		RawData:      `{"EventID": 11, "EventType": "file_create", "Computer": "TEST-MACHINE", "Image": "C:\\Program Files\\Microsoft Office\\Office16\\WINWORD.EXE", "TargetFilename": "C:\\Users\\test\\Documents\\suspicious.exe"}`,
+		Fields: map[string]interface{}{
+			"EventID":        11,
+			"EventType":      "file_create",
+			"Computer":       "TEST-MACHINE",
+			"Image":          "C:\\Program Files\\Microsoft Office\\Office16\\WINWORD.EXE",
+			"TargetFilename": "C:\\Users\\test\\Documents\\suspicious.exe",
+			"User":           "TEST-USER",
+		},
+	}
+
+	alert3 := &core.Alert{
+		AlertID:        uuid.New().String(),
+		RuleID:         "8c6fd6fc-28fc-4597-a86a-fc1de20b039d", // File Creation by Office Apps (HIGH)
+		EventID:        event3ID,
+		Timestamp:      timestamp.Add(2 * time.Second),
+		Severity:       "high",
+		Status:         core.AlertStatusNew,
+		Fingerprint:    "office-file-severity-test-high",
+		DuplicateCount: 1,
+		LastSeen:       timestamp.Add(2 * time.Second),
+		EventIDs:       []string{event3ID},
+		Event:          event3,
+	}
+
+	log.Printf("[3/4] Creating HIGH severity alert (Office File Creation)...")
+	log.Printf("  Rule ID: %s", alert3.RuleID)
+	log.Printf("  Alert ID: %s", alert3.AlertID)
+	log.Printf("  Severity: %s", alert3.Severity)
+	if err := alertStorage.InsertAlert(alert3); err != nil {
+		log.Fatalf("Failed to insert alert 3: %v", err)
+	}
+	log.Println("  ✓ Inserted successfully\n")
+	time.Sleep(500 * time.Millisecond)
+
+	// Test 4: CRITICAL severity - UNC4841 SEASPY Execution
+	event4ID := uuid.New().String()
+	event4 := &core.Event{
+		EventID:      event4ID,
+		Timestamp:    timestamp.Add(3 * time.Second),
+		IngestedAt:   timestamp.Add(3 * time.Second),
+		ListenerID:   "severity-test-listener",
+		ListenerName: "Severity Test Listener",
+		Source:       "severity-test",
+		SourceFormat: "json",
+		RawData:      `{"EventID": 1, "EventType": "process_creation", "Computer": "BARRACUDA-ESS", "Image": "/usr/local/bin/BarracudaMailService", "CommandLine": "/usr/local/bin/BarracudaMailService -c /etc/config.cfg"}`,
+		Fields: map[string]interface{}{
+			"EventID":     1,
+			"EventType":   "process_creation",
+			"Computer":    "BARRACUDA-ESS",
+			"Image":       "/usr/local/bin/BarracudaMailService",
+			"CommandLine": "/usr/local/bin/BarracudaMailService -c /etc/config.cfg",
+			"User":        "root",
+		},
+	}
+
+	alert4 := &core.Alert{
+		AlertID:        uuid.New().String(),
+		RuleID:         "f6a711f3-d032-4f9e-890b-bbe776236c84", // UNC4841 SEASPY (CRITICAL)
+		EventID:        event4ID,
+		Timestamp:      timestamp.Add(3 * time.Second),
+		Severity:       "critical",
+		Status:         core.AlertStatusNew,
+		Fingerprint:    "seaspy-severity-test-critical",
+		DuplicateCount: 1,
+		LastSeen:       timestamp.Add(3 * time.Second),
+		EventIDs:       []string{event4ID},
+		Event:          event4,
+	}
+
+	log.Printf("[4/4] Creating CRITICAL severity alert (UNC4841 SEASPY)...")
+	log.Printf("  Rule ID: %s", alert4.RuleID)
+	log.Printf("  Alert ID: %s", alert4.AlertID)
+	log.Printf("  Severity: %s", alert4.Severity)
+	if err := alertStorage.InsertAlert(alert4); err != nil {
+		log.Fatalf("Failed to insert alert 4: %v", err)
+	}
+	log.Println("  ✓ Inserted successfully\n")
+
+	log.Println(strings.Repeat("=", 70))
+	log.Println("✅ SEVERITY TEST COMPLETE")
+	log.Println(strings.Repeat("=", 70))
+	log.Println("\nVerification:")
+	log.Println("1. Check alerts: curl 'http://localhost:3001/api/v1/alerts?limit=10'")
+	log.Printf("\nExpected Results:")
+	log.Printf("  - 4 alerts with listener_id='severity-test-listener'")
+	log.Printf("  - 1 LOW severity alert")
+	log.Printf("  - 1 MEDIUM severity alert")
+	log.Printf("  - 1 HIGH severity alert")
+	log.Printf("  - 1 CRITICAL severity alert")
+	log.Printf("\nAlert IDs:")
+	log.Printf("  LOW:      %s\n", alert1.AlertID)
+	log.Printf("  MEDIUM:   %s\n", alert2.AlertID)
+	log.Printf("  HIGH:     %s\n", alert3.AlertID)
+	log.Printf("  CRITICAL: %s\n", alert4.AlertID)
+}

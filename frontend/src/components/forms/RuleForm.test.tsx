@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor  } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { RuleForm } from './RuleForm';
@@ -33,15 +33,13 @@ vi.mock('@mui/material', () => ({
   Grid: ({ children, container, item, spacing, alignItems, xs, sm, ...props }: any) => <div>{children}</div>,
   Accordion: ({ children }: any) => <div>{children}</div>,
   AccordionSummary: ({ children, expandIcon }: any) => <div>{children}</div>,
-  AccordionDetails: ({ children }: any) => <div>{children}</div>,
-}));
+  AccordionDetails: ({ children }: any) => <div>{children}</div>}));
 
 // Mock MUI icons
 vi.mock('@mui/icons-material', () => ({
   Add: () => <span>+</span>,
   Delete: () => <span>-</span>,
-  ExpandMore: () => <span>v</span>,
-}));
+  ExpandMore: () => <span>v</span>}));
 
 const mockOnClose = vi.fn();
 const mockOnSubmit = vi.fn();
@@ -50,8 +48,7 @@ const defaultProps = {
   open: true,
   onClose: mockOnClose,
   onSubmit: mockOnSubmit,
-  title: 'Create Rule',
-};
+  title: 'Create Rule'};
 
 describe('RuleForm', () => {
   beforeEach(() => {

@@ -1,0 +1,403 @@
+[
+  {
+    "id": "failed_login_brute_force",
+    "name": "Brute Force Attack - Failed Logins",
+    "description": "Multiple failed login attempts from same source IP indicating brute force attack",
+    "severity": "High",
+    "enabled": true,
+    "version": 1,
+    "conditions": [
+      {
+        "field": "event_type",
+        "operator": "==",
+        "value": "authentication",
+        "logic": "AND"
+      },
+      {
+        "field": "auth_result",
+        "operator": "==",
+        "value": "failed",
+        "logic": "AND"
+      }
+    ],
+    "actions": [
+      {
+        "type": "email",
+        "config": {
+          "to": "security@example.com",
+          "subject": "Brute Force Attack Detected",
+          "body": "Multiple failed login attempts detected from {{.Event.SourceIP}}"
+        }
+      }
+    ],
+    "deduplication": {
+      "enabled": true,
+      "fields": ["source_ip", "username"],
+      "time_window": 300000000000
+    }
+  },
+  {
+    "id": "successful_login",
+    "name": "Successful Authentication",
+    "description": "Successful user authentication event",
+    "severity": "Low",
+    "enabled": true,
+    "version": 1,
+    "conditions": [
+      {
+        "field": "event_type",
+        "operator": "==",
+        "value": "authentication",
+        "logic": "AND"
+      },
+      {
+        "field": "auth_result",
+        "operator": "==",
+        "value": "success",
+        "logic": "AND"
+      }
+    ],
+    "actions": [],
+    "deduplication": {
+      "enabled": false
+    }
+  },
+  {
+    "id": "suspicious_file_access",
+    "name": "Sensitive File Access",
+    "description": "Access to sensitive system files that may indicate privilege escalation or reconnaissance",
+    "severity": "Medium",
+    "enabled": true,
+    "version": 1,
+    "conditions": [
+      {
+        "field": "event_type",
+        "operator": "==",
+        "value": "file_access",
+        "logic": "AND"
+      },
+      {
+        "field": "file_path",
+        "operator": "contains",
+        "value": "/etc/shadow",
+        "logic": "OR"
+      },
+      {
+        "field": "file_path",
+        "operator": "contains",
+        "value": "/etc/passwd",
+        "logic": "OR"
+      },
+      {
+        "field": "file_path",
+        "operator": "contains",
+        "value": "SAM",
+        "logic": "OR"
+      },
+      {
+        "field": "file_path",
+        "operator": "contains",
+        "value": "passwords",
+        "logic": "OR"
+      }
+    ],
+    "actions": [
+      {
+        "type": "webhook",
+        "config": {
+          "url": "http://localhost:9000/alert",
+          "method": "POST"
+        }
+      }
+    ],
+    "deduplication": {
+      "enabled": true,
+      "fields": ["file_path", "user"],
+      "time_window": 600000000000
+    }
+  },
+  {
+    "id": "port_scan_detection",
+    "name": "Port Scan Detected",
+    "description": "Multiple connection attempts to different ports indicating port scanning activity",
+    "severity": "Medium",
+    "enabled": true,
+    "version": 1,
+    "conditions": [
+      {
+        "field": "event_type",
+        "operator": "==",
+        "value": "network_connection",
+        "logic": "AND"
+      },
+      {
+        "field": "connection_state",
+        "operator": "==",
+        "value": "syn_sent",
+        "logic": "OR"
+      },
+      {
+        "field": "connection_state",
+        "operator": "==",
+        "value": "failed",
+        "logic": "OR"
+      }
+    ],
+    "actions": [],
+    "deduplication": {
+      "enabled": true,
+      "fields": ["source_ip", "dest_ip"],
+      "time_window": 300000000000
+    }
+  },
+  {
+    "id": "large_data_transfer",
+    "name": "Large Data Transfer to External IP",
+    "description": "Unusually large data transfer to external IP address may indicate data exfiltration",
+    "severity": "High",
+    "enabled": true,
+    "version": 1,
+    "conditions": [
+      {
+        "field": "event_type",
+        "operator": "==",
+        "value": "network_connection",
+        "logic": "AND"
+      },
+      {
+        "field": "bytes_sent",
+        "operator": ">",
+        "value": "10000000",
+        "logic": "AND"
+      },
+      {
+        "field": "dest_ip",
+        "operator": "!contains",
+        "value": "10.",
+        "logic": "AND"
+      }
+    ],
+    "actions": [
+      {
+        "type": "email",
+        "config": {
+          "to": "security@example.com",
+          "subject": "ALERT: Potential Data Exfiltration",
+          "body": "Large data transfer detected: {{.Event.Fields.bytes_sent}} bytes to {{.Event.Fields.dest_ip}}"
+        }
+      }
+    ],
+    "deduplication": {
+      "enabled": true,
+      "fields": ["source_ip", "dest_ip"],
+      "time_window": 900000000000
+    }
+  },
+  {
+    "id": "sql_injection_attempt",
+    "name": "SQL Injection Attempt",
+    "description": "HTTP request contains SQL injection patterns",
+    "severity": "High",
+    "enabled": true,
+    "version": 1,
+    "conditions": [
+      {
+        "field": "event_type",
+        "operator": "==",
+        "value": "http_request",
+        "logic": "AND"
+      },
+      {
+        "field": "uri",
+        "operator": "contains",
+        "value": "' OR '1'='1",
+        "logic": "OR"
+      },
+      {
+        "field": "uri",
+        "operator": "contains",
+        "value": "UNION SELECT",
+        "logic": "OR"
+      },
+      {
+        "field": "uri",
+        "operator": "contains",
+        "value": "DROP TABLE",
+        "logic": "OR"
+      }
+    ],
+    "actions": [
+      {
+        "type": "webhook",
+        "config": {
+          "url": "http://localhost:9000/sqli-alert",
+          "method": "POST"
+        }
+      }
+    ],
+    "deduplication": {
+      "enabled": true,
+      "fields": ["source_ip"],
+      "time_window": 600000000000
+    }
+  },
+  {
+    "id": "privileged_command_execution",
+    "name": "Privileged Command Execution",
+    "description": "High-risk command executed with elevated privileges",
+    "severity": "High",
+    "enabled": true,
+    "version": 1,
+    "conditions": [
+      {
+        "field": "event_type",
+        "operator": "==",
+        "value": "process_creation",
+        "logic": "AND"
+      },
+      {
+        "field": "user",
+        "operator": "==",
+        "value": "root",
+        "logic": "OR"
+      },
+      {
+        "field": "user",
+        "operator": "==",
+        "value": "SYSTEM",
+        "logic": "OR"
+      },
+      {
+        "field": "user",
+        "operator": "==",
+        "value": "Administrator",
+        "logic": "OR"
+      }
+    ],
+    "actions": [],
+    "deduplication": {
+      "enabled": true,
+      "fields": ["process_name", "user"],
+      "time_window": 300000000000
+    }
+  },
+  {
+    "id": "suspicious_powershell",
+    "name": "Suspicious PowerShell Execution",
+    "description": "PowerShell executed with encoded command or suspicious parameters",
+    "severity": "High",
+    "enabled": true,
+    "version": 1,
+    "conditions": [
+      {
+        "field": "event_type",
+        "operator": "==",
+        "value": "process_creation",
+        "logic": "AND"
+      },
+      {
+        "field": "process_name",
+        "operator": "contains",
+        "value": "powershell",
+        "logic": "AND"
+      },
+      {
+        "field": "command_line",
+        "operator": "contains",
+        "value": "-enc",
+        "logic": "OR"
+      },
+      {
+        "field": "command_line",
+        "operator": "contains",
+        "value": "EncodedCommand",
+        "logic": "OR"
+      },
+      {
+        "field": "command_line",
+        "operator": "contains",
+        "value": "DownloadString",
+        "logic": "OR"
+      }
+    ],
+    "actions": [
+      {
+        "type": "email",
+        "config": {
+          "to": "security@example.com",
+          "subject": "Suspicious PowerShell Activity",
+          "body": "Suspicious PowerShell command detected: {{.Event.Fields.command_line}}"
+        }
+      }
+    ],
+    "deduplication": {
+      "enabled": true,
+      "fields": ["command_line"],
+      "time_window": 600000000000
+    }
+  },
+  {
+    "id": "rdp_connection",
+    "name": "RDP Connection Established",
+    "description": "Remote Desktop Protocol connection established",
+    "severity": "Low",
+    "enabled": true,
+    "version": 1,
+    "conditions": [
+      {
+        "field": "event_type",
+        "operator": "==",
+        "value": "network_connection",
+        "logic": "AND"
+      },
+      {
+        "field": "dest_port",
+        "operator": "==",
+        "value": "3389",
+        "logic": "AND"
+      },
+      {
+        "field": "connection_state",
+        "operator": "==",
+        "value": "established",
+        "logic": "AND"
+      }
+    ],
+    "actions": [],
+    "deduplication": {
+      "enabled": false
+    }
+  },
+  {
+    "id": "smb_connection",
+    "name": "SMB Connection Established",
+    "description": "SMB/CIFS connection established",
+    "severity": "Low",
+    "enabled": true,
+    "version": 1,
+    "conditions": [
+      {
+        "field": "event_type",
+        "operator": "==",
+        "value": "network_connection",
+        "logic": "AND"
+      },
+      {
+        "field": "dest_port",
+        "operator": "==",
+        "value": "445",
+        "logic": "AND"
+      },
+      {
+        "field": "connection_state",
+        "operator": "==",
+        "value": "established",
+        "logic": "AND"
+      }
+    ],
+    "actions": [],
+    "deduplication": {
+      "enabled": false
+    }
+  }
+]

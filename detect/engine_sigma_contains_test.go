@@ -1,0 +1,362 @@
+package detect
+
+import (
+	"fmt"
+	"strings"
+	"testing"
+
+	"cerberus/core"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// ============================================================================
+// SIGMA SPECIFICATION COMPLIANCE TESTS - CONTAINS OPERATOR
+// ============================================================================
+//
+// **PURPOSE**: Validate contains operator compliance with Sigma Specification v2.1.0
+// **REFERENCE**: BACKEND_TEST_IMPROVEMENTS.md GAP-SIGMA-002
+// **SPECIFICATION**: sigma-compliance.md Section 2.2 (contains operator)
+//
+// **CRITICAL REQUIREMENTS** (from Sigma spec):
+// 1. Substring Matching: Value must be substring of field value
+// 2. Case Sensitivity: "error" ≠ "ERROR" (MUST be case-sensitive per current implementation)
+// 3. Wildcard Behavior: Contains implicitly adds * wildcards (*value*)
+// 4. Unicode Support: Must handle UTF-8 characters correctly
+// 5. Empty String: Empty string is substring of any string
+//
+// **IMPLEMENTATION UNDER TEST**: detect/engine.go line 386-392
+// case "contains":
+//     if str, ok := fieldValue.(string); ok {
+//         if valStr, ok := cond.Value.(string); ok {
+//             return strings.Contains(str, valStr)
+//         }
+//     }
+//     return false
+//
+// ============================================================================
+
+// TestSigmaContains_SubstringMatching validates
+// contains operator performs substring matching per Sigma specification v2.1.0 Section 2.2
+func TestSigmaContains_SubstringMatching(t *testing.T) {
+	rule := core.Rule{
+		ID:      "substring_test",
+		Type:    "sigma",
+		Enabled: true,
+		SigmaYAML: `
+title: Substring Test
+logsource:
+  product: syslog
+detection:
+  selection:
+    message|contains: error
+  condition: selection
+`,
+	}
+
+	engine := newTestRuleEngineWithSigma([]core.Rule{rule})
+
+	event := core.NewEvent()
+	event.Fields = map[string]interface{}{
+		"message": "an error occurred", // "error" is substring
+	}
+
+	matches := engine.Evaluate(event)
+
+	// MUST match per Sigma spec Section 2.2
+	require.Len(t, matches, 1,
+		"contains operator MUST match substring per Sigma spec Section 2.2")
+}
+
+// TestSigmaContains_CaseSensitivity validates
+// contains operator case sensitivity per current implementation (Go strings.Contains)
+func TestSigmaContains_CaseSensitivity(t *testing.T) {
+	tests := []struct {
+		name        string
+		ruleValue   string
+		eventValue  string
+		shouldMatch bool
+		reason      string
+	}{
+		{
+			name:        "exact_case_match",
+			ruleValue:   "error",
+			eventValue:  "an error occurred",
+			shouldMatch: true,
+			reason:      "exact case substring match",
+		},
+		{
+			name:        "case_mismatch_uppercase",
+			ruleValue:   "error",
+			eventValue:  "an ERROR occurred",
+			shouldMatch: false,
+			reason:      "case-sensitive: 'error' ≠ 'ERROR'",
+		},
+		{
+			name:        "case_mismatch_mixed",
+			ruleValue:   "Error",
+			eventValue:  "an error occurred",
+			shouldMatch: false,
+			reason:      "case-sensitive: 'Error' ≠ 'error'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rule := core.Rule{
+				ID:      "case_test",
+		Type:    "sigma",
+		Enabled: true,
+		SigmaYAML: fmt.Sprintf(`
+title: Case Test
+logsource:
+  product: syslog
+detection:
+  selection:
+    message|contains: %s
+  condition: selection
+`, tt.ruleValue),
+	}
+
+			engine := newTestRuleEngineWithSigma([]core.Rule{rule})
+
+			event := core.NewEvent()
+			event.Fields = map[string]interface{}{
+				"message": tt.eventValue,
+			}
+
+			matches := engine.Evaluate(event)
+
+			if tt.shouldMatch {
+				require.Len(t, matches, 1, "contains operator: %s", tt.reason)
+			} else {
+				assert.Empty(t, matches, "contains operator: %s", tt.reason)
+			}
+		})
+	}
+}
+
+// TestSigmaContains_WildcardBehavior validates
+// contains operator wildcard behavior (implicit *value*)
+func TestSigmaContains_WildcardBehavior(t *testing.T) {
+	tests := []struct {
+		name        string
+		ruleValue   string
+		eventValue  string
+		shouldMatch bool
+		reason      string
+	}{
+		{
+			name:        "substring_at_start",
+			ruleValue:   "error",
+			eventValue:  "error occurred",
+			shouldMatch: true,
+			reason:      "implicit wildcard at end: error*",
+		},
+		{
+			name:        "substring_at_end",
+			ruleValue:   "error",
+			eventValue:  "fatal error",
+			shouldMatch: true,
+			reason:      "implicit wildcard at start: *error",
+		},
+		{
+			name:        "substring_in_middle",
+			ruleValue:   "error",
+			eventValue:  "an error occurred",
+			shouldMatch: true,
+			reason:      "implicit wildcards both sides: *error*",
+		},
+		{
+			name:        "special_chars_literal",
+			ruleValue:   "*.exe",
+			eventValue:  "file *.exe found",
+			shouldMatch: true,
+			reason:      "asterisk in contains is literal, not wildcard",
+		},
+		{
+			name:        "backslash_literal",
+			ruleValue:   "\\system32",
+			eventValue:  "C:\\Windows\\system32\\cmd.exe",
+			shouldMatch: true,
+			reason:      "backslash is literal character",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rule := core.Rule{
+				ID:      "wildcard_test",
+				Type:    "sigma",
+				Enabled: true,
+				SigmaYAML: fmt.Sprintf(`
+title: Wildcard Test
+logsource:
+  product: syslog
+detection:
+  selection:
+    path|contains: '%s'
+  condition: selection
+`, strings.ReplaceAll(tt.ruleValue, "'", "''")),
+			}
+
+			engine := newTestRuleEngineWithSigma([]core.Rule{rule})
+
+			event := core.NewEvent()
+			event.Fields = map[string]interface{}{
+				"path": tt.eventValue,
+			}
+
+			matches := engine.Evaluate(event)
+
+			if tt.shouldMatch {
+				require.Len(t, matches, 1, "contains wildcard behavior: %s", tt.reason)
+			} else {
+				assert.Empty(t, matches, "contains wildcard behavior: %s", tt.reason)
+			}
+		})
+	}
+}
+
+// TestSigmaContains_UnicodeHandling validates
+// contains operator Unicode support per Sigma specification
+func TestSigmaContains_UnicodeHandling(t *testing.T) {
+	tests := []struct {
+		name        string
+		ruleValue   string
+		eventValue  string
+		shouldMatch bool
+		reason      string
+	}{
+		{
+			name:        "chinese_characters",
+			ruleValue:   "用户",
+			eventValue:  "系统用户登录",
+			shouldMatch: true,
+			reason:      "Chinese characters substring match",
+		},
+		{
+			name:        "arabic_characters",
+			ruleValue:   "مستخدم",
+			eventValue:  "حساب مستخدم جديد",
+			shouldMatch: true,
+			reason:      "Arabic characters substring match",
+		},
+		{
+			name:        "emoji",
+			ruleValue:   "🔒",
+			eventValue:  "Account locked 🔒",
+			shouldMatch: true,
+			reason:      "Emoji substring match",
+		},
+		{
+			name:        "mixed_unicode_ascii",
+			ruleValue:   "user_中文",
+			eventValue:  "username: user_中文_123",
+			shouldMatch: true,
+			reason:      "Mixed Unicode and ASCII substring",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rule := core.Rule{
+				ID:      "unicode_test",
+		Type:    "sigma",
+		Enabled: true,
+		SigmaYAML: fmt.Sprintf(`
+title: Unicode Test
+logsource:
+  product: syslog
+detection:
+  selection:
+    message|contains: %s
+  condition: selection
+`, tt.ruleValue),
+	}
+
+			engine := newTestRuleEngineWithSigma([]core.Rule{rule})
+
+			event := core.NewEvent()
+			event.Fields = map[string]interface{}{
+				"message": tt.eventValue,
+			}
+
+			matches := engine.Evaluate(event)
+
+			if tt.shouldMatch {
+				require.Len(t, matches, 1, "Unicode support: %s", tt.reason)
+			} else {
+				assert.Empty(t, matches, "Unicode support: %s", tt.reason)
+			}
+		})
+	}
+}
+
+// TestSigmaContains_EmptyStringEdgeCase validates
+// contains operator empty string handling per Sigma specification
+func TestSigmaContains_EmptyStringEdgeCase(t *testing.T) {
+	tests := []struct {
+		name        string
+		ruleValue   string
+		eventValue  string
+		shouldMatch bool
+		reason      string
+	}{
+		{
+			name:        "empty_string_in_non_empty",
+			ruleValue:   "",
+			eventValue:  "anything",
+			shouldMatch: true,
+			reason:      "empty string is substring of any string per Go strings.Contains",
+		},
+		{
+			name:        "empty_string_in_empty",
+			ruleValue:   "",
+			eventValue:  "",
+			shouldMatch: true,
+			reason:      "empty string is substring of empty string",
+		},
+		{
+			name:        "non_empty_not_in_empty",
+			ruleValue:   "text",
+			eventValue:  "",
+			shouldMatch: false,
+			reason:      "non-empty string not substring of empty string",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rule := core.Rule{
+				ID:      "empty_test",
+				Type:    "sigma",
+				Enabled: true,
+				SigmaYAML: fmt.Sprintf(`
+title: Empty Test
+logsource:
+  product: syslog
+detection:
+  selection:
+    message|contains: '%s'
+  condition: selection
+`, strings.ReplaceAll(tt.ruleValue, "'", "''")),
+			}
+
+			engine := newTestRuleEngineWithSigma([]core.Rule{rule})
+
+			event := core.NewEvent()
+			event.Fields = map[string]interface{}{
+				"message": tt.eventValue,
+			}
+
+			matches := engine.Evaluate(event)
+
+			if tt.shouldMatch {
+				require.Len(t, matches, 1, "Empty string handling: %s", tt.reason)
+			} else {
+				assert.Empty(t, matches, "Empty string handling: %s", tt.reason)
+			}
+		})
+	}
+}

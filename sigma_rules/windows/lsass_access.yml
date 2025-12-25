@@ -1,0 +1,38 @@
+title: LSASS Memory Access
+id: 32d0d3e2-e58d-4d41-926f-24aa62870614
+status: stable
+description: Detects process access to LSASS memory which may indicate credential dumping
+references:
+  - https://attack.mitre.org/techniques/T1003/001/
+author: Florian Roth
+date: 2017/02/12
+modified: 2024/01/16
+tags:
+  - attack.credential_access
+  - attack.t1003.001
+logsource:
+  product: windows
+  category: process_access
+detection:
+  selection:
+    TargetImage|endswith: '\lsass.exe'
+    GrantedAccess|contains:
+      - '0x1010'
+      - '0x1410'
+      - '0x147a'
+      - '0x143a'
+  filter_system:
+    SourceImage|startswith:
+      - 'C:\Windows\System32\'
+      - 'C:\Windows\SysWOW64\'
+  filter_defender:
+    SourceImage|contains: '\Microsoft\Windows Defender\'
+  condition: selection and not filter_system and not filter_defender
+falsepositives:
+  - Legitimate system tools
+  - Security software
+level: high
+fields:
+  - SourceImage
+  - TargetImage
+  - GrantedAccess

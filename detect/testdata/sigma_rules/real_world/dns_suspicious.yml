@@ -1,0 +1,30 @@
+title: Suspicious DNS Query Patterns
+id: sigma-real-006
+status: test
+description: Detects DNS queries to suspicious TLDs or patterns
+logsource:
+    category: dns
+    product: windows
+detection:
+    selection_suspicious_tld:
+        QueryName|endswith:
+            - '.xyz'
+            - '.tk'
+            - '.pw'
+            - '.cc'
+            - '.top'
+            - '.club'
+    selection_encoded:
+        QueryName|re: '^[a-z0-9]{30,}\..*'
+    selection_dga:
+        QueryName|re: '^[bcdfghjklmnpqrstvwxz]{8,}\..*'
+    filter_legitimate:
+        QueryName|endswith:
+            - 'microsoft.com'
+            - 'windows.com'
+            - 'azure.com'
+    condition: (selection_suspicious_tld or selection_encoded or selection_dga) and not filter_legitimate
+level: medium
+tags:
+    - attack.command_and_control
+    - attack.t1071.004

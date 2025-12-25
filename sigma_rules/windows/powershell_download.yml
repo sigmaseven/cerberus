@@ -1,0 +1,40 @@
+title: Suspicious PowerShell Download
+id: 3b6ab547-8ec2-4991-b9d2-2b06702a48d7
+status: stable
+description: Detects PowerShell downloading files from the internet using various download methods
+references:
+  - https://attack.mitre.org/techniques/T1059/001/
+author: Florian Roth, Test
+date: 2019/01/16
+modified: 2024/01/16
+tags:
+  - attack.execution
+  - attack.t1059.001
+  - attack.command_and_control
+  - attack.t1071.001
+logsource:
+  product: windows
+  service: powershell
+detection:
+  selection:
+    EventID: 4104
+    ScriptBlockText|contains:
+      - 'Net.WebClient'
+      - 'DownloadFile'
+      - 'DownloadString'
+      - 'DownloadData'
+      - 'Invoke-WebRequest'
+      - 'Invoke-RestMethod'
+  filter:
+    ScriptBlockText|contains:
+      - 'github.com'
+      - 'microsoft.com'
+  condition: selection and not filter
+falsepositives:
+  - Legitimate software deployment scripts
+  - System administration scripts
+level: medium
+fields:
+  - ComputerName
+  - User
+  - ScriptBlockText

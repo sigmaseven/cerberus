@@ -1,0 +1,48 @@
+name: "Windows Brute Force Attack"
+description: "Simulates Windows authentication brute force leading to account lockout"
+duration: 90s
+source_ip: "192.168.10.50"
+target_user: "administrator"
+target_host: "DC01.corp.local"
+
+events:
+  # Stage 1: Multiple failed login attempts
+  - type: windows_failed_login
+    count: 10
+    interval: 2s
+    fields:
+      event_type: windows_failed_login
+      event_id: 4625
+      source_ip: "${SOURCE_IP}"
+      computer_name: "${TARGET_HOST}"
+      target_user: "${TARGET_USER}"
+      logon_type: "3"
+      failure_reason: "Bad password"
+      source_workstation: "ATTACKER-PC"
+
+  # Stage 2: Account lockout after repeated failures
+  - type: windows_account_lockout
+    count: 1
+    delay: 25s
+    fields:
+      event_type: windows_account_lockout
+      event_id: 4740
+      source_ip: "${SOURCE_IP}"
+      computer_name: "${TARGET_HOST}"
+      target_user: "${TARGET_USER}"
+      caller_computer: "ATTACKER-PC"
+
+expected_alerts:
+  - rule_id: windows_failed_login
+    severity: low
+    min_count: 1
+  - rule_id: windows_account_lockout
+    severity: medium
+    min_count: 1
+  - rule_id: windows_brute_force_attack
+    severity: critical
+    min_count: 1
+
+validation:
+  timeout: 120s
+  check_interval: 5s

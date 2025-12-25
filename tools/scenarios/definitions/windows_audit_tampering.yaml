@@ -1,0 +1,44 @@
+name: "Windows Audit Tampering"
+description: "Attacker disables audit logging and clears security logs"
+duration: 60s
+attacker_user: "compromised_admin"
+target_host: "WEB01.corp.local"
+
+events:
+  # Stage 1: Modify audit policy to disable logging
+  - type: windows_audit_policy_changed
+    count: 1
+    fields:
+      event_type: windows_audit_policy_changed
+      event_id: 4719
+      computer_name: "${TARGET_HOST}"
+      subject_user: "${ATTACKER_USER}"
+      category: "System"
+      subcategory: "Audit Policy Change"
+      changes: "Success removed, Failure removed"
+
+  # Stage 2: Clear security event log to hide tracks
+  - type: windows_security_log_cleared
+    count: 1
+    delay: 20s
+    fields:
+      event_type: windows_security_log_cleared
+      event_id: 1102
+      computer_name: "${TARGET_HOST}"
+      subject_user: "${ATTACKER_USER}"
+      subject_domain: "CORP"
+
+expected_alerts:
+  - rule_id: windows_audit_policy_changed
+    severity: high
+    min_count: 1
+  - rule_id: windows_security_log_cleared
+    severity: critical
+    min_count: 1
+  - rule_id: windows_audit_tampering
+    severity: critical
+    min_count: 1
+
+validation:
+  timeout: 90s
+  check_interval: 5s

@@ -1,0 +1,279 @@
+name: BDD Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  bdd-security:
+    name: Security BDD Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Install Godog
+        run: go install github.com/cucumber/godog/cmd/godog@latest
+
+      - name: Install dependencies
+        run: |
+          cd tests/bdd
+          go mod download
+          go mod tidy
+
+      - name: Start Cerberus in test mode
+        run: |
+          docker-compose -f docker-compose.test.yml up -d
+          sleep 15
+
+          # Wait for API to be ready
+          timeout 60 bash -c 'until curl -f http://localhost:8081/health; do sleep 2; done'
+
+      - name: Initialize test database
+        run: |
+          # Create test admin user
+          curl -X POST http://localhost:8081/api/v1/auth/register \
+            -H "Content-Type: application/json" \
+            -d '{"username":"admin","password":"Admin123!Test","role":"admin"}' || true
+
+      - name: Run security BDD tests
+        run: |
+          cd tests/bdd
+          go test -v . \
+            -godog.tags="@security && @critical" \
+            -godog.format=cucumber:../../reports/security-bdd.json \
+            -godog.format=junit:../../reports/security-bdd.xml \
+            -godog.format=pretty
+
+      - name: Upload security test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: security-bdd-results
+          path: reports/security-bdd.*
+
+      - name: Stop Cerberus
+        if: always()
+        run: docker-compose -f docker-compose.test.yml down
+
+  bdd-data-integrity:
+    name: Data Integrity BDD Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Install Godog
+        run: go install github.com/cucumber/godog/cmd/godog@latest
+
+      - name: Install dependencies
+        run: |
+          cd tests/bdd
+          go mod download
+
+      - name: Start Cerberus in test mode
+        run: |
+          docker-compose -f docker-compose.test.yml up -d
+          sleep 15
+          timeout 60 bash -c 'until curl -f http://localhost:8081/health; do sleep 2; done'
+
+      - name: Run data integrity BDD tests
+        run: |
+          cd tests/bdd
+          go test -v . \
+            -godog.tags="@data && @critical" \
+            -godog.format=cucumber:../../reports/data-bdd.json \
+            -godog.format=pretty
+
+      - name: Upload data integrity test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: data-bdd-results
+          path: reports/data-bdd.*
+
+      - name: Stop Cerberus
+        if: always()
+        run: docker-compose -f docker-compose.test.yml down
+
+  bdd-detection:
+    name: Detection Engine BDD Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Install Godog
+        run: go install github.com/cucumber/godog/cmd/godog@latest
+
+      - name: Install dependencies
+        run: |
+          cd tests/bdd
+          go mod download
+
+      - name: Start Cerberus in test mode
+        run: |
+          docker-compose -f docker-compose.test.yml up -d
+          sleep 15
+          timeout 60 bash -c 'until curl -f http://localhost:8081/health; do sleep 2; done'
+
+      - name: Run detection engine BDD tests
+        run: |
+          cd tests/bdd
+          go test -v . \
+            -godog.tags="@detection" \
+            -godog.format=cucumber:../../reports/detection-bdd.json \
+            -godog.format=pretty
+
+      - name: Upload detection test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: detection-bdd-results
+          path: reports/detection-bdd.*
+
+      - name: Stop Cerberus
+        if: always()
+        run: docker-compose -f docker-compose.test.yml down
+
+  bdd-api:
+    name: API Contract BDD Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Install Godog
+        run: go install github.com/cucumber/godog/cmd/godog@latest
+
+      - name: Install dependencies
+        run: |
+          cd tests/bdd
+          go mod download
+
+      - name: Start Cerberus in test mode
+        run: |
+          docker-compose -f docker-compose.test.yml up -d
+          sleep 15
+          timeout 60 bash -c 'until curl -f http://localhost:8081/health; do sleep 2; done'
+
+      - name: Run API contract BDD tests
+        run: |
+          cd tests/bdd
+          go test -v . \
+            -godog.tags="@api" \
+            -godog.format=cucumber:../../reports/api-bdd.json \
+            -godog.format=pretty
+
+      - name: Upload API test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: api-bdd-results
+          path: reports/api-bdd.*
+
+      - name: Stop Cerberus
+        if: always()
+        run: docker-compose -f docker-compose.test.yml down
+
+  bdd-performance:
+    name: Performance BDD Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Install Godog
+        run: go install github.com/cucumber/godog/cmd/godog@latest
+
+      - name: Install dependencies
+        run: |
+          cd tests/bdd
+          go mod download
+
+      - name: Start Cerberus in test mode
+        run: |
+          docker-compose -f docker-compose.test.yml up -d
+          sleep 15
+          timeout 60 bash -c 'until curl -f http://localhost:8081/health; do sleep 2; done'
+
+      - name: Run performance BDD tests
+        run: |
+          cd tests/bdd
+          go test -v . \
+            -godog.tags="@performance" \
+            -godog.format=cucumber:../../reports/performance-bdd.json \
+            -godog.format=pretty \
+            -timeout=30m
+
+      - name: Upload performance test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: performance-bdd-results
+          path: reports/performance-bdd.*
+
+      - name: Stop Cerberus
+        if: always()
+        run: docker-compose -f docker-compose.test.yml down
+
+  bdd-report:
+    name: Generate BDD Test Report
+    runs-on: ubuntu-latest
+    needs: [bdd-security, bdd-data-integrity, bdd-detection, bdd-api, bdd-performance]
+    if: always()
+
+    steps:
+      - name: Download all test results
+        uses: actions/download-artifact@v3
+        with:
+          path: reports/
+
+      - name: Generate consolidated report
+        run: |
+          echo "# BDD Test Results" > reports/summary.md
+          echo "" >> reports/summary.md
+
+          for result in reports/*/*.json; do
+            echo "Processing $result"
+            # Add JSON parsing to generate summary
+          done
+
+      - name: Upload consolidated report
+        uses: actions/upload-artifact@v3
+        with:
+          name: bdd-test-report
+          path: reports/summary.md

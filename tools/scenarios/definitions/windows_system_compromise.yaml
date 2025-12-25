@@ -1,0 +1,46 @@
+name: "Windows System Compromise"
+description: "Time manipulation followed by malicious service installation"
+duration: 90s
+attacker_user: "system"
+target_host: "WEB02.corp.local"
+
+events:
+  # Stage 1: Change system time (anti-forensics)
+  - type: windows_system_time_changed
+    count: 1
+    fields:
+      event_type: windows_system_time_changed
+      event_id: 4616
+      computer_name: "${TARGET_HOST}"
+      subject_user: "${ATTACKER_USER}"
+      previous_time: "2024-01-15T10:30:00Z"
+      new_time: "2024-01-10T08:00:00Z"
+
+  # Stage 2: Install malicious service
+  - type: windows_service_started
+    count: 1
+    delay: 20s
+    fields:
+      event_type: windows_service_started
+      event_id: 7045
+      computer_name: "${TARGET_HOST}"
+      service_name: "WindowsDefenderUpdate"
+      service_file_name: "C:\\ProgramData\\defender\\update.exe"
+      service_type: "kernel mode driver"
+      service_start_type: "auto start"
+      service_account: "LocalSystem"
+
+expected_alerts:
+  - rule_id: windows_system_time_changed
+    severity: medium
+    min_count: 1
+  - rule_id: windows_service_started
+    severity: low
+    min_count: 1
+  - rule_id: windows_system_compromise
+    severity: high
+    min_count: 1
+
+validation:
+  timeout: 120s
+  check_interval: 5s

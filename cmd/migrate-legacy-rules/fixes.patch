@@ -1,0 +1,14 @@
+This file documents the 10 required fixes for Task 175 Iteration 3:
+
+1. ADD COMPREHENSIVE TESTS for >90% coverage
+2. FIX bash script find command (line 198) - GNU-specific
+3. FIX rollback error wrapping (lines 442-445) - use composite error
+4. FIX signal handler race condition (lines 658-665)
+5. ADD input validation in convertToSigmaYAML  
+6. FIX nil pointer risk in panic handler (line 430-437)
+7. FIX bash integrity check logic (line 180)
+8. ADD context timeout (line 654)
+9. ADD SQL injection warning comment
+10. FIX documentation false claim about coverage
+
+All fixes to be implemented below.

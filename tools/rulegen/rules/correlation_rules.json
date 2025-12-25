@@ -1,0 +1,129 @@
+[
+  {
+    "id": "brute_force_then_success",
+    "name": "Brute Force Followed by Successful Login",
+    "description": "Multiple failed logins followed by successful authentication - possible credential compromise",
+    "severity": "Critical",
+    "version": 1,
+    "sequence": ["failed_login_brute_force", "successful_login"],
+    "window": 300000000000,
+    "conditions": [
+      {
+        "field": "source_ip",
+        "operator": "==",
+        "value": "",
+        "logic": "AND"
+      }
+    ],
+    "actions": [
+      {
+        "type": "email",
+        "config": {
+          "to": "soc@example.com",
+          "subject": "CRITICAL: Possible Account Compromise",
+          "body": "Brute force attack followed by successful login detected. Source IP: {{.Event.SourceIP}}"
+        }
+      },
+      {
+        "type": "webhook",
+        "config": {
+          "url": "http://localhost:9000/critical-alert",
+          "method": "POST"
+        }
+      }
+    ]
+  },
+  {
+    "id": "lateral_movement_rdp_smb",
+    "name": "Lateral Movement via RDP and SMB",
+    "description": "RDP connection followed by SMB connection indicating lateral movement",
+    "severity": "High",
+    "version": 1,
+    "sequence": ["rdp_connection", "smb_connection"],
+    "window": 600000000000,
+    "conditions": [
+      {
+        "field": "source_ip",
+        "operator": "==",
+        "value": "",
+        "logic": "AND"
+      }
+    ],
+    "actions": [
+      {
+        "type": "email",
+        "config": {
+          "to": "security@example.com",
+          "subject": "Lateral Movement Detected",
+          "body": "Potential lateral movement detected via RDP and SMB connections"
+        }
+      }
+    ]
+  },
+  {
+    "id": "recon_to_exploit",
+    "name": "Reconnaissance to Exploitation",
+    "description": "Port scan followed by successful connection to discovered service",
+    "severity": "High",
+    "version": 1,
+    "sequence": ["port_scan_detection", "rdp_connection"],
+    "window": 900000000000,
+    "conditions": [],
+    "actions": [
+      {
+        "type": "webhook",
+        "config": {
+          "url": "http://localhost:9000/recon-alert",
+          "method": "POST"
+        }
+      }
+    ]
+  },
+  {
+    "id": "data_access_then_exfil",
+    "name": "Sensitive Data Access Followed by Exfiltration",
+    "description": "Access to sensitive files followed by large data transfer",
+    "severity": "Critical",
+    "version": 1,
+    "sequence": ["suspicious_file_access", "large_data_transfer"],
+    "window": 1800000000000,
+    "conditions": [
+      {
+        "field": "source_ip",
+        "operator": "==",
+        "value": "",
+        "logic": "AND"
+      }
+    ],
+    "actions": [
+      {
+        "type": "email",
+        "config": {
+          "to": "soc@example.com",
+          "subject": "CRITICAL: Potential Data Breach",
+          "body": "Sensitive file access followed by large data transfer detected"
+        }
+      }
+    ]
+  },
+  {
+    "id": "privilege_escalation_chain",
+    "name": "Privilege Escalation Chain",
+    "description": "Suspicious file access followed by privileged command execution",
+    "severity": "Critical",
+    "version": 1,
+    "sequence": ["suspicious_file_access", "privileged_command_execution"],
+    "window": 300000000000,
+    "conditions": [],
+    "actions": [
+      {
+        "type": "email",
+        "config": {
+          "to": "security@example.com",
+          "subject": "Privilege Escalation Detected",
+          "body": "Potential privilege escalation chain detected"
+        }
+      }
+    ]
+  }
+]
