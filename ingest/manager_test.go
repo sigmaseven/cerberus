@@ -112,9 +112,8 @@ func TestListenerManager_PipelineErrorHandling(t *testing.T) {
 	defer db.Close()
 	dlq := NewDLQ(db, logger)
 
-	// BLOCKING-3 FIX: Pass nil for DLQ in tests (no malformed event handling needed)
-	lm := NewListenerManager(mockStorage, mockFieldMapping, eventCh, cfg, logger, nil)
-	lm.SetDLQ(dlq)
+	// Pass DLQ to constructor (deprecated SetDLQ method removed)
+	lm := NewListenerManager(mockStorage, mockFieldMapping, eventCh, cfg, logger, dlq)
 	defer lm.Shutdown()
 
 	// Create a syslog listener
@@ -388,9 +387,8 @@ func TestListenerManager_DLQRouting(t *testing.T) {
 	defer db.Close()
 	dlq := NewDLQ(db, logger)
 
-	// BLOCKING-3 FIX: Pass nil for DLQ in tests (no malformed event handling needed)
-	lm := NewListenerManager(mockStorage, mockFieldMapping, eventCh, cfg, logger, nil)
-	lm.SetDLQ(dlq)
+	// Pass DLQ to constructor (deprecated SetDLQ method removed)
+	lm := NewListenerManager(mockStorage, mockFieldMapping, eventCh, cfg, logger, dlq)
 	defer lm.Shutdown()
 
 	// Create listener

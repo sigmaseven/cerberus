@@ -109,46 +109,6 @@ func (n *FieldNormalizer) NormalizeEvent(event map[string]interface{}, logSource
 	return normalized
 }
 
-// NormalizeEventInPlace normalizes fields in-place (modifies the original map)
-// DEPRECATED: Use NormalizeToSIGMA for cleaner SIGMA-only output
-func (n *FieldNormalizer) NormalizeEventInPlace(event map[string]interface{}, logSource string) {
-	if n.mappings == nil {
-		return
-	}
-
-	n.mappings.mu.RLock()
-	defer n.mappings.mu.RUnlock()
-
-	mapping := n.mappings.Mappings[logSource]
-	if mapping == nil {
-		mapping = n.mappings.Mappings["generic"]
-		if mapping == nil {
-			return
-		}
-	}
-
-	// Apply mappings
-	for rawField, sigmaField := range mapping {
-		value := getNestedField(event, rawField)
-		if value != nil {
-			event[sigmaField] = value
-
-			// Special handling
-			switch sigmaField {
-			case "Hashes":
-				event[sigmaField] = normalizeHashes(value)
-			case "EventTime":
-				event[sigmaField] = normalizeTimestamp(value)
-			}
-		}
-	}
-
-	// Auto-detect category
-	if _, exists := event["Category"]; !exists {
-		event["Category"] = detectCategory(event)
-	}
-}
-
 // NormalizeToSIGMA converts event fields to SIGMA-standard field names only.
 // Original field names are replaced with their SIGMA equivalents.
 // Fields without a mapping are passed through unchanged.

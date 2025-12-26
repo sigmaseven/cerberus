@@ -87,16 +87,6 @@ func NewListenerManager(
 	return lm
 }
 
-// SetDLQ sets the DLQ instance for the listener manager
-// TASK 7.3: Add DLQ support to listener manager
-// DEPRECATED: Use constructor parameter instead to avoid race conditions
-// Kept for backwards compatibility with existing code
-func (lm *ListenerManager) SetDLQ(dlq *DLQ) {
-	lm.mu.Lock()
-	defer lm.mu.Unlock()
-	lm.dlq = dlq
-}
-
 // SetDefaultFieldNormalizer sets the default SIGMA field normalizer
 // This normalizer is used for all listeners that use the "sigma" field mapping
 // Call this after loading sigma_field_mappings.yaml at startup

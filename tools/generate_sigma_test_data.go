@@ -1,3 +1,5 @@
+//go:build ignore
+
 // generate_sigma_test_data.go - Test data generator with SIGMA-normalized fields
 // Generates 1000+ events with at least 20 triggering alerts and all correlation rules
 //

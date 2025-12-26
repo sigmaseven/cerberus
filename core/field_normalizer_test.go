@@ -209,35 +209,6 @@ func TestFieldNormalizer_NormalizeEvent_CategoryDetection(t *testing.T) {
 	assert.Equal(t, "generic", normalized6["Category"])
 }
 
-// TestFieldNormalizer_NormalizeEventInPlace tests in-place normalization
-func TestFieldNormalizer_NormalizeEventInPlace(t *testing.T) {
-	mappings := &FieldMappings{
-		Mappings: map[string]map[string]string{
-			"test_source": {
-				"src_ip": "SourceIp",
-				"dst_ip": "DestinationIp",
-			},
-		},
-	}
-
-	normalizer := NewFieldNormalizer(mappings)
-
-	event := map[string]interface{}{
-		"src_ip": "192.168.1.100",
-		"dst_ip": "10.0.0.1",
-	}
-
-	// Normalize in place
-	normalizer.NormalizeEventInPlace(event, "test_source")
-
-	// Original event should be modified
-	assert.Equal(t, "192.168.1.100", event["SourceIp"])
-	assert.Equal(t, "10.0.0.1", event["DestinationIp"])
-	// Original fields should still exist
-	assert.Equal(t, "192.168.1.100", event["src_ip"])
-	assert.Equal(t, "10.0.0.1", event["dst_ip"])
-}
-
 // TestFieldNormalizer_GetMappingForSource tests mapping retrieval
 func TestFieldNormalizer_GetMappingForSource(t *testing.T) {
 	mappings := &FieldMappings{
