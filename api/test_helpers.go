@@ -588,30 +588,6 @@ func CreateTestUserWithRole(t *testing.T, userStorage storage.UserStorage, usern
 	return user
 }
 
-//lint:ignore U1000 Test helper reserved for RBAC testing scenarios
-func createTestTokenWithRole(t *testing.T, secret, username string, roles []string) string {
-	expirationTime := time.Now().Add(1 * time.Hour)
-	if roles == nil || len(roles) == 0 {
-		roles = []string{"admin"} // Default to admin
-	}
-	claims := &Claims{
-		Username: username,
-		Roles:    roles,
-		RegisteredClaims: jwt.RegisteredClaims{
-			Subject:   username,
-			ExpiresAt: jwt.NewNumericDate(expirationTime),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()),
-			ID:        fmt.Sprintf("test-jti-%d", time.Now().UnixNano()),
-			Issuer:    "cerberus",
-		},
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(secret))
-	require.NoError(t, err, "Failed to create test token with role")
-	return tokenString
-}
-
 // GetRoleID returns the role ID for a role name
 func GetRoleID(roleName string) int64 {
 	switch roleName {
