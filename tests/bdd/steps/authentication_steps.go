@@ -15,10 +15,10 @@ import (
 
 // Authentication-specific constants
 const (
-	accountLockoutThreshold = 5                 // Failed attempts before lockout
-	accountLockoutDuration  = 15 * time.Minute  // Lockout duration
-	jwtExpiration           = 24 * time.Hour    // Standard JWT expiration
-	timingAttackThreshold   = 100               // Max timing difference in milliseconds
+	accountLockoutThreshold = 5                // Failed attempts before lockout
+	accountLockoutDuration  = 15 * time.Minute // Lockout duration
+	jwtExpiration           = 24 * time.Hour   // Standard JWT expiration
+	timingAttackThreshold   = 100              // Max timing difference in milliseconds
 )
 
 // ========================================

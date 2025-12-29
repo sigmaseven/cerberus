@@ -359,10 +359,10 @@ func (cc *CorrelationContext) iSendSuccessfulAuthEventsForUserToDistinctHosts(co
 	for i := 0; i < count; i++ {
 		hostIdx := i % hostCount
 		event := map[string]interface{}{
-			"event_type":      "auth_success",
-			"username":        user,
+			"event_type":       "auth_success",
+			"username":         user,
 			"destination_host": fmt.Sprintf("host%d", hostIdx),
-			"timestamp":       time.Now().Add(time.Duration(i) * time.Second).Unix(),
+			"timestamp":        time.Now().Add(time.Duration(i) * time.Second).Unix(),
 		}
 		cc.sentEvents = append(cc.sentEvents, event)
 	}
@@ -476,7 +476,7 @@ func (cc *CorrelationContext) correlationStateContainsEventsFromMinutesAgo(minut
 
 func (cc *CorrelationContext) theStateCleanupRuns() error {
 	cc.stateCleanupStats = map[string]interface{}{
-		"events_removed": 10,
+		"events_removed":  10,
 		"events_retained": 5,
 	}
 	return nil

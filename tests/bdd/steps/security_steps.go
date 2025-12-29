@@ -39,21 +39,21 @@ type SecurityContext struct {
 	httpClient *http.Client
 
 	// Authentication
-	authToken  string
-	username   string
-	userID     string
+	authToken string
+	username  string
+	userID    string
 
 	// Request/Response state
-	lastRequest       *http.Request
-	lastResponse      *http.Response
-	lastResponseBody  []byte
-	lastError         error
+	lastRequest      *http.Request
+	lastResponse     *http.Response
+	lastResponseBody []byte
+	lastError        error
 
 	// Search state
-	searchQuery       string
-	searchResults     []map[string]interface{}
-	queryStartTime    time.Time
-	queryDuration     time.Duration
+	searchQuery    string
+	searchResults  []map[string]interface{}
+	queryStartTime time.Time
+	queryDuration  time.Duration
 
 	// Test data
 	testRules         map[string]map[string]interface{} // rule ID -> rule data

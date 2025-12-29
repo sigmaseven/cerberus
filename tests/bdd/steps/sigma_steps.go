@@ -14,15 +14,15 @@ import (
 // SIGMAContext maintains state for SIGMA operator test scenarios
 // Per AFFIRMATIONS.md Line 147: Context pattern for proper state encapsulation
 type SIGMAContext struct {
-	baseURL        string
-	httpClient     *http.Client
-	currentRule    map[string]interface{}
-	currentEvent   map[string]interface{}
+	baseURL          string
+	httpClient       *http.Client
+	currentRule      map[string]interface{}
+	currentEvent     map[string]interface{}
 	evaluationResult bool
-	alertGenerated bool
-	lastError      error
-	ruleID         string
-	eventID        string
+	alertGenerated   bool
+	lastError        error
+	ruleID           string
+	eventID          string
 }
 
 // InitializeSIGMAContext registers all SIGMA operator step definitions

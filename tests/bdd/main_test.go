@@ -35,10 +35,8 @@ package bdd
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/cucumber/godog"
 	"github.com/cucumber/godog/colors"
@@ -117,13 +115,9 @@ func InitializeScenario(ctx *godog.ScenarioContext) {
 	securityCtx := steps.NewSecurityContext()
 
 	// Register step definitions by domain
-	apiCtx := &steps.APIContext{
-		baseURL:    "http://localhost:8080",
-		httpClient: &http.Client{Timeout: 10 * time.Second},
-	}
+	apiCtx := steps.NewAPIContext()
 
 	steps.RegisterSecuritySteps(ctx, securityCtx)
-	steps.InitializeAuthenticationContext(ctx)
 	steps.InitializeAuthorizationContext(ctx)
 	steps.InitializeACIDContext(ctx)
 	steps.InitializeSIGMAContext(ctx)
@@ -135,6 +129,7 @@ func InitializeScenario(ctx *godog.ScenarioContext) {
 	steps.InitializeSearchContext(ctx, apiCtx)
 	steps.InitializeNotificationContext(ctx, apiCtx)
 	steps.InitializeBackupContext(ctx, apiCtx)
+	steps.InitializeVisualBuilderContext(ctx, apiCtx)
 
 	// Scenario-level hooks for setup and teardown
 	ctx.Before(func(ctx context.Context, sc *godog.Scenario) (context.Context, error) {
@@ -152,6 +147,8 @@ func InitializeScenario(ctx *godog.ScenarioContext) {
 				fmt.Println("    [SECURITY TEST - Attack vector validation]")
 			case "@performance":
 				fmt.Println("    [PERFORMANCE TEST - SLA validation required]")
+			case "@visual-builder":
+				fmt.Println("    [VISUAL BUILDER TEST - Correlation graph validation]")
 			}
 		}
 

@@ -15,16 +15,16 @@ import (
 // CorrelationContext maintains state for correlation rule test scenarios
 // Per AFFIRMATIONS.md Line 147: Context pattern for proper state encapsulation
 type CorrelationContext struct {
-	baseURL             string
-	httpClient          *http.Client
-	currentRule         map[string]interface{}
-	sentEvents          []map[string]interface{}
-	correlationAlert    map[string]interface{}
-	alertGenerated      bool
-	lastError           error
-	ruleID              string
-	stateCleanupStats   map[string]interface{}
-	correlationBuckets  map[string][]map[string]interface{}
+	baseURL            string
+	httpClient         *http.Client
+	currentRule        map[string]interface{}
+	sentEvents         []map[string]interface{}
+	correlationAlert   map[string]interface{}
+	alertGenerated     bool
+	lastError          error
+	ruleID             string
+	stateCleanupStats  map[string]interface{}
+	correlationBuckets map[string][]map[string]interface{}
 }
 
 // InitializeCorrelationContext registers all correlation step definitions

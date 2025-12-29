@@ -27,6 +27,16 @@ type APIContext struct {
 	lastError        error
 }
 
+// NewAPIContext creates a new APIContext with default settings
+func NewAPIContext() *APIContext {
+	return &APIContext{
+		baseURL: "http://localhost:8080",
+		httpClient: &http.Client{
+			Timeout: 10 * time.Second,
+		},
+	}
+}
+
 // InitializeAPIContext registers all API contract step definitions
 // Requirement: API-001 through API-013 - Complete API test coverage
 func InitializeAPIContext(sc *godog.ScenarioContext) {
