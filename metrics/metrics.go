@@ -539,4 +539,47 @@ var (
 		},
 		[]string{"storage_type", "worker_id"},
 	)
+
+	// PARALLEL DETECTION WORKERS: Metrics for monitoring detection worker performance
+
+	// DetectionWorkerEventsProcessed tracks events processed per worker
+	// Labels: worker_id
+	// OBSERVABILITY: Monitor worker load distribution and throughput
+	DetectionWorkerEventsProcessed = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cerberus_detection_worker_events_processed_total",
+			Help: "Total number of events processed per detection worker",
+		},
+		[]string{"worker_id"},
+	)
+
+	// DetectionWorkerProcessingDuration tracks per-event processing time per worker
+	// Labels: worker_id
+	// OBSERVABILITY: Monitor individual worker performance for load balancing
+	DetectionWorkerProcessingDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "cerberus_detection_worker_processing_duration_seconds",
+			Help:    "Time taken to process events per detection worker",
+			Buckets: []float64{0.0001, 0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25},
+		},
+		[]string{"worker_id"},
+	)
+
+	// DetectionQueueDepth tracks pending events in detection queue
+	// OBSERVABILITY: Monitor backpressure and capacity planning
+	DetectionQueueDepth = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "cerberus_detection_queue_depth",
+			Help: "Number of events pending in detection queue",
+		},
+	)
+
+	// DetectionQueueDropped tracks events dropped due to full queue
+	// OBSERVABILITY: Critical metric for capacity planning and data loss
+	DetectionQueueDropped = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "cerberus_detection_queue_dropped_total",
+			Help: "Total number of events dropped due to full detection queue",
+		},
+	)
 )

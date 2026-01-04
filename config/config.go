@@ -175,10 +175,11 @@ type Config struct {
 	} `mapstructure:"storage"`
 
 	Engine struct {
-		ChannelBufferSize   int `mapstructure:"channel_buffer_size"`
-		WorkerCount         int `mapstructure:"worker_count"`
-		ActionWorkerCount   int `mapstructure:"action_worker_count"`
-		RateLimit           int `mapstructure:"rate_limit"`
+		ChannelBufferSize    int `mapstructure:"channel_buffer_size"`
+		WorkerCount          int `mapstructure:"worker_count"`
+		DetectionWorkerCount int `mapstructure:"detection_worker_count"` // Number of parallel detection workers (default: 4)
+		ActionWorkerCount    int `mapstructure:"action_worker_count"`
+		RateLimit            int `mapstructure:"rate_limit"`
 		CorrelationStateTTL int `mapstructure:"correlation_state_ttl"` // seconds
 		ActionTimeout       int `mapstructure:"action_timeout"`        // seconds
 		CircuitBreaker      struct {

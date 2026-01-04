@@ -25,15 +25,19 @@ func newTestConfig() Config {
 			MaxPoolSize:        10,
 		},
 		Listeners: struct {
-			Syslog struct {
-				Port int    `mapstructure:"port"`
-				Host string `mapstructure:"host"`
+			UseLegacyListeners bool `mapstructure:"use_legacy_listeners"`
+			Syslog             struct {
+				Enabled bool   `mapstructure:"enabled"`
+				Port    int    `mapstructure:"port"`
+				Host    string `mapstructure:"host"`
 			} `mapstructure:"syslog"`
 			CEF struct {
-				Port int    `mapstructure:"port"`
-				Host string `mapstructure:"host"`
+				Enabled bool   `mapstructure:"enabled"`
+				Port    int    `mapstructure:"port"`
+				Host    string `mapstructure:"host"`
 			} `mapstructure:"cef"`
 			JSON struct {
+				Enabled  bool   `mapstructure:"enabled"`
 				Port     int    `mapstructure:"port"`
 				Host     string `mapstructure:"host"`
 				TLS      bool   `mapstructure:"tls"`
@@ -62,21 +66,25 @@ func newTestConfig() Config {
 			TCPConnectionTimeout int  `mapstructure:"tcp_connection_timeout"`
 			TCPConnectionBacklog int  `mapstructure:"tcp_connection_backlog"`
 		}{
+			UseLegacyListeners: true, // Enable legacy for backward compat in tests
 			Syslog: struct {
-				Port int    `mapstructure:"port"`
-				Host string `mapstructure:"host"`
-			}{Port: 514, Host: "0.0.0.0"},
+				Enabled bool   `mapstructure:"enabled"`
+				Port    int    `mapstructure:"port"`
+				Host    string `mapstructure:"host"`
+			}{Enabled: true, Port: 514, Host: "0.0.0.0"},
 			CEF: struct {
-				Port int    `mapstructure:"port"`
-				Host string `mapstructure:"host"`
-			}{Port: 515, Host: "0.0.0.0"},
+				Enabled bool   `mapstructure:"enabled"`
+				Port    int    `mapstructure:"port"`
+				Host    string `mapstructure:"host"`
+			}{Enabled: true, Port: 515, Host: "0.0.0.0"},
 			JSON: struct {
+				Enabled  bool   `mapstructure:"enabled"`
 				Port     int    `mapstructure:"port"`
 				Host     string `mapstructure:"host"`
 				TLS      bool   `mapstructure:"tls"`
 				CertFile string `mapstructure:"cert_file"`
 				KeyFile  string `mapstructure:"key_file"`
-			}{Port: 8080, Host: "0.0.0.0", TLS: true, CertFile: "server.crt", KeyFile: "server.key"},
+			}{Enabled: true, Port: 8080, Host: "0.0.0.0", TLS: true, CertFile: "server.crt", KeyFile: "server.key"},
 			Fluentd: struct {
 				Port           int    `mapstructure:"port"`
 				Host           string `mapstructure:"host"`
@@ -96,13 +104,14 @@ func newTestConfig() Config {
 			}{Port: 24225, Host: "0.0.0.0"},
 		},
 		Engine: struct {
-			ChannelBufferSize   int `mapstructure:"channel_buffer_size"`
-			WorkerCount         int `mapstructure:"worker_count"`
-			ActionWorkerCount   int `mapstructure:"action_worker_count"`
-			RateLimit           int `mapstructure:"rate_limit"`
-			CorrelationStateTTL int `mapstructure:"correlation_state_ttl"`
-			ActionTimeout       int `mapstructure:"action_timeout"`
-			CircuitBreaker      struct {
+			ChannelBufferSize    int `mapstructure:"channel_buffer_size"`
+			WorkerCount          int `mapstructure:"worker_count"`
+			DetectionWorkerCount int `mapstructure:"detection_worker_count"`
+			ActionWorkerCount    int `mapstructure:"action_worker_count"`
+			RateLimit            int `mapstructure:"rate_limit"`
+			CorrelationStateTTL  int `mapstructure:"correlation_state_ttl"`
+			ActionTimeout        int `mapstructure:"action_timeout"`
+			CircuitBreaker       struct {
 				MaxFailures         int `mapstructure:"max_failures"`
 				TimeoutSeconds      int `mapstructure:"timeout_seconds"`
 				MaxHalfOpenRequests int `mapstructure:"max_half_open_requests"`
@@ -119,9 +128,10 @@ func newTestConfig() Config {
 			SigmaRolloutEnabledRules   []string      `mapstructure:"sigma_rollout_enabled_rules"`
 			SigmaRolloutDisabledRules  []string      `mapstructure:"sigma_rollout_disabled_rules"`
 		}{
-			ChannelBufferSize:   1000,
-			WorkerCount:         10,
-			ActionWorkerCount:   5,
+			ChannelBufferSize:    1000,
+			WorkerCount:          10,
+			DetectionWorkerCount: 4,
+			ActionWorkerCount:    5,
 			RateLimit:           1000,
 			CorrelationStateTTL: 300,
 			ActionTimeout:       30,

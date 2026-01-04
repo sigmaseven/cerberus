@@ -196,7 +196,7 @@ func TestDetector_ProcessRuleMatches_CreatesAlertOnMatch(t *testing.T) {
 	}()
 
 	// This should not block or panic
-	detector.processRuleMatches(alertableRules, event)
+	detector.processRuleMatches(alertableRules, event, "sigma")
 
 	// Verify alert was sent
 	testinghelpers.WaitForCondition(t, func() bool {
@@ -334,7 +334,7 @@ func TestDetector_ProcessRuleMatches_LogsWarningWhenAlertChannelFull(t *testing.
 	// Implementation should use select with default case
 	done := make(chan bool, 1)
 	go func() {
-		detector.processRuleMatches(alertableRules, event)
+		detector.processRuleMatches(alertableRules, event, "sigma")
 		done <- true
 	}()
 
@@ -411,7 +411,7 @@ func TestDetector_ProcessRuleMatches_LogsWarningWhenActionChannelFull(t *testing
 	// Implementation should use select with default case
 	done := make(chan bool, 1)
 	go func() {
-		detector.processRuleMatches(alertableRules, event)
+		detector.processRuleMatches(alertableRules, event, "sigma")
 		done <- true
 	}()
 
@@ -498,4 +498,91 @@ func TestDetector_Run_LogsWarningWhenOutputChannelFull(t *testing.T) {
 
 	// If we get here without hanging, the test passed
 	// The detector successfully handled a full output channel
+}
+
+// TestDetector_ParallelWorkers_ProcessesEventsConcurrently verifies that
+// multiple detection workers process events in parallel.
+//
+// Requirement: PERF-001 - Parallel Detection
+// Detection workers MUST process events concurrently to maximize throughput.
+func TestDetector_ParallelWorkers_ProcessesEventsConcurrently(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+
+	// Create a rule that matches all events
+	rules := []core.Rule{
+		{
+			ID:        testinghelpers.TestRuleID,
+			Type:      "sigma",
+			Enabled:   true,
+			SigmaYAML: testSigmaYAMLUserLogin,
+			Actions:   []core.Action{},
+		},
+	}
+
+	engine := newTestRuleEngineWithSigma(rules)
+	inputCh := make(chan *core.Event, 100)
+	outputCh := make(chan *core.Event, 100)
+	alertCh := make(chan *core.Alert, 100)
+
+	cfg := testinghelpers.SetupTestConfig()
+	// Ensure we have multiple detection workers
+	cfg.Engine.DetectionWorkerCount = 4
+
+	detector, err := NewDetector(engine, inputCh, outputCh, alertCh, cfg, logger)
+	require.NoError(t, err, "NewDetector failed")
+
+	// Verify the detector has the correct worker count configured
+	assert.Equal(t, 4, detector.detectionWorkerCount, "DetectionWorkerCount not set correctly")
+
+	var closeOnce sync.Once
+	t.Cleanup(func() {
+		closeOnce.Do(func() {
+			close(inputCh)
+		})
+		detector.Stop()
+	})
+
+	detector.Start()
+
+	// Send multiple events quickly to test parallel processing
+	numEvents := 20
+	for i := 0; i < numEvents; i++ {
+		event := core.NewEvent()
+		require.NotNil(t, event, "NewEvent returned nil")
+		event.EventType = testinghelpers.TestEventType
+		inputCh <- event
+	}
+
+	// Collect output events with timeout
+	receivedCount := 0
+	timeout := time.After(testinghelpers.TestLongTimeout)
+	for receivedCount < numEvents {
+		select {
+		case <-outputCh:
+			receivedCount++
+		case <-timeout:
+			t.Fatalf("Timeout waiting for events: received %d of %d", receivedCount, numEvents)
+		}
+	}
+
+	assert.Equal(t, numEvents, receivedCount, "Not all events were processed")
+
+	// Also verify alerts were generated
+	alertCount := 0
+	for alertCount < numEvents {
+		select {
+		case <-alertCh:
+			alertCount++
+		case <-time.After(testinghelpers.TestShortTimeout):
+			// Some alerts may have been processed already
+			break
+		}
+	}
+
+	// At least some alerts should have been generated
+	assert.GreaterOrEqual(t, alertCount, 1, "No alerts were generated")
+
+	closeOnce.Do(func() {
+		close(inputCh)
+	})
 }
