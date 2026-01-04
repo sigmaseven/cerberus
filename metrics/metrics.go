@@ -582,4 +582,43 @@ var (
 			Help: "Total number of events dropped due to full detection queue",
 		},
 	)
+
+	// INCREMENTAL CORRELATION CLEANUP: Metrics for monitoring cleanup performance
+
+	// CorrelationCleanupDuration tracks time spent in cleanup per batch
+	// OBSERVABILITY: Monitor cleanup efficiency and lock contention impact
+	CorrelationCleanupDuration = promauto.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "cerberus_correlation_cleanup_duration_seconds",
+			Help:    "Time spent in correlation cleanup per batch",
+			Buckets: []float64{0.0001, 0.0005, 0.001, 0.005, 0.01, 0.025, 0.05},
+		},
+	)
+
+	// CorrelationCleanupRulesProcessed tracks rules processed per cleanup cycle
+	// OBSERVABILITY: Monitor cleanup throughput and batch efficiency
+	CorrelationCleanupRulesProcessed = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "cerberus_correlation_cleanup_rules_processed_total",
+			Help: "Total number of correlation rules processed during cleanup",
+		},
+	)
+
+	// CorrelationCleanupRulesExpired tracks rules with expired state removed
+	// OBSERVABILITY: Monitor state churn and memory reclamation
+	CorrelationCleanupRulesExpired = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "cerberus_correlation_cleanup_rules_expired_total",
+			Help: "Total number of correlation rules with expired state removed",
+		},
+	)
+
+	// CorrelationStateSize tracks current number of rules with active state
+	// OBSERVABILITY: Monitor memory usage and state accumulation
+	CorrelationStateSize = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "cerberus_correlation_state_size",
+			Help: "Current number of correlation rules with active state",
+		},
+	)
 )
