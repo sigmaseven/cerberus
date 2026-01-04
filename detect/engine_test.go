@@ -1,6 +1,8 @@
 package detect
 
 import (
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -41,6 +43,8 @@ detection:
 	require.NotNil(t, event, "NewEvent returned nil")
 	require.NotNil(t, event.Fields, "Event.Fields is nil")
 	event.EventType = testinghelpers.TestEventType
+	event.LogsourceProduct = "test" // Must match the rule's logsource.product
+	event.Fields["event_type"] = testinghelpers.TestEventType // SIGMA evaluates against Fields map
 
 	matches := engine.Evaluate(event)
 	if len(matches) != 1 {
@@ -362,11 +366,17 @@ func TestRuleEngine_EvaluateCorrelationRule_WithConditions(t *testing.T) {
 
 func TestRuleEngine_ResetCorrelationState(t *testing.T) {
 	engine := NewRuleEngine([]core.Rule{}, []core.CorrelationRule{}, 0)
-	engine.correlationState["test"] = []*core.Event{core.NewEvent()}
+	// Add a shard via the public API
+	engine.shardsMu.Lock()
+	engine.correlationShards["test"] = &ShardedCorrelationState{events: []*core.Event{core.NewEvent()}}
+	engine.shardsMu.Unlock()
 
 	engine.ResetCorrelationState()
 
-	assert.Len(t, engine.correlationState, 0)
+	engine.shardsMu.RLock()
+	shardCount := len(engine.correlationShards)
+	engine.shardsMu.RUnlock()
+	assert.Equal(t, 0, shardCount)
 }
 
 func TestRuleEngine_EvaluateCorrelationRule_InsufficientEvents(t *testing.T) {
@@ -585,4 +595,317 @@ func TestRuleEngine_ConcurrentCorrelation(t *testing.T) {
 func TestRuleEngine_ConcurrentRuleReload(t *testing.T) {
 	// TASK #184: Legacy Conditions-based tests skipped - use SIGMA rules instead
 	t.Skip("Legacy Conditions-based tests skipped - use SIGMA rules instead")
+}
+
+// ============================================================================
+// Future Timestamp Rejection Tests (SECURITY-2)
+// ============================================================================
+
+// TestRuleEngine_EvaluateCorrelationRule_RejectsFutureEvents verifies that events
+// with timestamps beyond MaxFutureTimestampTolerance are filtered out.
+// SECURITY: Prevents time-based DoS where attackers send future-dated events.
+func TestRuleEngine_EvaluateCorrelationRule_RejectsFutureEvents(t *testing.T) {
+	correlationRule := core.CorrelationRule{
+		ID:       "future_timestamp_test",
+		Sequence: []string{"login", "login"},
+		Window:   fiveMinutesInNanoseconds,
+	}
+
+	engine := NewRuleEngine([]core.Rule{}, []core.CorrelationRule{correlationRule}, 3600)
+	now := time.Now()
+
+	// Event 1: Normal timestamp
+	event1 := core.NewEvent()
+	event1.EventID = "1"
+	event1.EventType = "login"
+	event1.Timestamp = now
+	engine.evaluateCorrelationRule(correlationRule, event1)
+
+	// Event 2: Future timestamp (beyond MaxFutureTimestampTolerance of 1 minute)
+	event2 := core.NewEvent()
+	event2.EventID = "2"
+	event2.EventType = "login"
+	event2.Timestamp = now.Add(2 * time.Minute) // Beyond 1 minute tolerance
+	matched := engine.evaluateCorrelationRule(correlationRule, event2)
+
+	// Should NOT match because event2 was filtered out due to future timestamp
+	assert.False(t, matched, "Future event beyond tolerance should be rejected")
+
+	// Verify state only contains event1
+	engine.shardsMu.RLock()
+	shard := engine.correlationShards[correlationRule.ID]
+	engine.shardsMu.RUnlock()
+
+	shard.mu.RLock()
+	state := shard.events
+	shard.mu.RUnlock()
+
+	assert.Len(t, state, 1, "Only non-future event should remain in state")
+	assert.Equal(t, "1", state[0].EventID, "Only event1 should be in state")
+}
+
+// TestRuleEngine_EvaluateCorrelationRule_AcceptsEventsWithinClockSkew verifies that
+// events with timestamps within MaxFutureTimestampTolerance are accepted.
+func TestRuleEngine_EvaluateCorrelationRule_AcceptsEventsWithinClockSkew(t *testing.T) {
+	correlationRule := core.CorrelationRule{
+		ID:       "clock_skew_test",
+		Sequence: []string{"login", "login"},
+		Window:   fiveMinutesInNanoseconds,
+	}
+
+	engine := NewRuleEngine([]core.Rule{}, []core.CorrelationRule{correlationRule}, 3600)
+	now := time.Now()
+
+	// Event 1: Normal timestamp
+	event1 := core.NewEvent()
+	event1.EventID = "1"
+	event1.EventType = "login"
+	event1.Timestamp = now
+	engine.evaluateCorrelationRule(correlationRule, event1)
+
+	// Event 2: Slightly future timestamp (within 1 minute tolerance)
+	event2 := core.NewEvent()
+	event2.EventID = "2"
+	event2.EventType = "login"
+	event2.Timestamp = now.Add(30 * time.Second) // Within 1 minute tolerance
+	matched := engine.evaluateCorrelationRule(correlationRule, event2)
+
+	// Should match because both events are valid
+	assert.True(t, matched, "Event within clock skew tolerance should be accepted")
+}
+
+// TestRuleEngine_EvaluateCorrelationRule_FutureTimestampBoundary tests the exact
+// boundary condition at MaxFutureTimestampTolerance.
+func TestRuleEngine_EvaluateCorrelationRule_FutureTimestampBoundary(t *testing.T) {
+	correlationRule := core.CorrelationRule{
+		ID:       "boundary_test",
+		Sequence: []string{"login", "login"},
+		Window:   fiveMinutesInNanoseconds,
+	}
+
+	engine := NewRuleEngine([]core.Rule{}, []core.CorrelationRule{correlationRule}, 3600)
+	now := time.Now()
+
+	// Event 1: Normal timestamp
+	event1 := core.NewEvent()
+	event1.EventID = "1"
+	event1.EventType = "login"
+	event1.Timestamp = now
+	engine.evaluateCorrelationRule(correlationRule, event1)
+
+	// Event 2: Exactly at the boundary (1 minute = MaxFutureTimestampTolerance)
+	event2 := core.NewEvent()
+	event2.EventID = "2"
+	event2.EventType = "login"
+	event2.Timestamp = now.Add(MaxFutureTimestampTolerance)
+	matched := engine.evaluateCorrelationRule(correlationRule, event2)
+
+	// Should match because event is exactly at (not beyond) the tolerance
+	assert.True(t, matched, "Event exactly at tolerance boundary should be accepted")
+}
+
+// TestRuleEngine_EvaluateCorrelationRule_FutureTimestampJustBeyondBoundary tests
+// that events just beyond MaxFutureTimestampTolerance are rejected.
+func TestRuleEngine_EvaluateCorrelationRule_FutureTimestampJustBeyondBoundary(t *testing.T) {
+	correlationRule := core.CorrelationRule{
+		ID:       "just_beyond_test",
+		Sequence: []string{"login", "login"},
+		Window:   fiveMinutesInNanoseconds,
+	}
+
+	engine := NewRuleEngine([]core.Rule{}, []core.CorrelationRule{correlationRule}, 3600)
+	now := time.Now()
+
+	// Event 1: Normal timestamp
+	event1 := core.NewEvent()
+	event1.EventID = "1"
+	event1.EventType = "login"
+	event1.Timestamp = now
+	engine.evaluateCorrelationRule(correlationRule, event1)
+
+	// Event 2: Just beyond the boundary (1 minute + 1 nanosecond)
+	event2 := core.NewEvent()
+	event2.EventID = "2"
+	event2.EventType = "login"
+	event2.Timestamp = now.Add(MaxFutureTimestampTolerance + 1*time.Nanosecond)
+	matched := engine.evaluateCorrelationRule(correlationRule, event2)
+
+	// Should NOT match because event is beyond tolerance
+	assert.False(t, matched, "Event just beyond tolerance should be rejected")
+}
+
+// ============================================================================
+// Insertion Order Tests
+// ============================================================================
+
+// TestInsertEventInOrder_OutOfOrder verifies that out-of-order events are
+// inserted at the correct position.
+func TestInsertEventInOrder_OutOfOrder(t *testing.T) {
+	now := time.Now()
+
+	events := []*core.Event{
+		{EventID: "1", Timestamp: now},
+		{EventID: "3", Timestamp: now.Add(2 * time.Second)},
+	}
+
+	// Insert event with timestamp between existing events
+	newEvent := &core.Event{EventID: "2", Timestamp: now.Add(1 * time.Second)}
+	result := insertEventInOrder(events, newEvent)
+
+	require.Len(t, result, 3)
+	assert.Equal(t, "1", result[0].EventID)
+	assert.Equal(t, "2", result[1].EventID, "New event should be inserted in middle")
+	assert.Equal(t, "3", result[2].EventID)
+}
+
+// TestInsertEventInOrder_InOrder verifies that in-order events are appended.
+func TestInsertEventInOrder_InOrder(t *testing.T) {
+	now := time.Now()
+
+	events := []*core.Event{
+		{EventID: "1", Timestamp: now},
+		{EventID: "2", Timestamp: now.Add(1 * time.Second)},
+	}
+
+	// Insert event with latest timestamp
+	newEvent := &core.Event{EventID: "3", Timestamp: now.Add(2 * time.Second)}
+	result := insertEventInOrder(events, newEvent)
+
+	require.Len(t, result, 3)
+	assert.Equal(t, "3", result[2].EventID, "New event should be appended at end")
+}
+
+// TestInsertEventInOrder_EqualTimestamps verifies stable insertion for equal timestamps.
+func TestInsertEventInOrder_EqualTimestamps(t *testing.T) {
+	now := time.Now()
+
+	events := []*core.Event{
+		{EventID: "1", Timestamp: now},
+		{EventID: "2", Timestamp: now}, // Same timestamp
+	}
+
+	// Insert another event with the same timestamp
+	newEvent := &core.Event{EventID: "3", Timestamp: now}
+	result := insertEventInOrder(events, newEvent)
+
+	require.Len(t, result, 3)
+	// Stable insertion: new event should be at the end (after existing equal-timestamp events)
+	assert.Equal(t, "1", result[0].EventID)
+	assert.Equal(t, "2", result[1].EventID)
+	assert.Equal(t, "3", result[2].EventID, "New event should be inserted after existing events with same timestamp")
+}
+
+// TestInsertEventInOrder_EmptySlice verifies insertion into an empty slice.
+func TestInsertEventInOrder_EmptySlice(t *testing.T) {
+	events := []*core.Event{}
+	newEvent := &core.Event{EventID: "1", Timestamp: time.Now()}
+
+	result := insertEventInOrder(events, newEvent)
+
+	require.Len(t, result, 1)
+	assert.Equal(t, "1", result[0].EventID)
+}
+
+// TestInsertEventInOrder_NilEvent verifies nil events are ignored.
+func TestInsertEventInOrder_NilEvent(t *testing.T) {
+	now := time.Now()
+	events := []*core.Event{
+		{EventID: "1", Timestamp: now},
+	}
+
+	result := insertEventInOrder(events, nil)
+
+	assert.Len(t, result, 1, "Nil event should not be added")
+}
+
+// TestRuleEngine_ConcurrentVersionCounterUpdates verifies that version counter
+// correctly tracks state changes under concurrent access. This test validates
+// the optimistic locking mechanism used to prevent race conditions.
+func TestRuleEngine_ConcurrentVersionCounterUpdates(t *testing.T) {
+	// Create a rule with a multi-step sequence that requires 100 events to match
+	// This ensures events accumulate in state instead of immediately clearing
+	rule := core.CorrelationRule{
+		ID:       "test-concurrent-version",
+		Name:     "Test Concurrent Version",
+		Sequence: []string{"step1", "step2", "step3", "step4", "step5"}, // 5-step sequence
+		Window:   5 * time.Minute,
+	}
+
+	engine := NewRuleEngine([]core.Rule{}, []core.CorrelationRule{rule}, 60)
+
+	// Run multiple goroutines that evaluate the same rule concurrently
+	// All send "step1" events so the sequence never completes
+	const numGoroutines = 50
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func(id int) {
+			defer wg.Done()
+			event := &core.Event{
+				EventID:   fmt.Sprintf("event-%d", id),
+				EventType: "step1", // Only send step1, so sequence never matches
+				Timestamp: time.Now(),
+			}
+			engine.evaluateCorrelationRule(rule, event)
+		}(i)
+	}
+
+	wg.Wait()
+
+	// Verify version counter has been updated (using sharded state)
+	engine.shardsMu.RLock()
+	shard := engine.correlationShards[rule.ID]
+	engine.shardsMu.RUnlock()
+
+	shard.mu.RLock()
+	version := shard.version
+	stateLen := len(shard.events)
+	shard.mu.RUnlock()
+
+	// Version should have been incremented at least once
+	assert.GreaterOrEqual(t, version, uint64(1), "Version should have incremented during concurrent access")
+	// Some events should be in state (not all 50 due to merge conflicts and memory limits)
+	assert.GreaterOrEqual(t, stateLen, 1, "At least one event should be in state")
+}
+
+// TestRuleEngine_VersionCounterMonotonicallyIncreases verifies that version counter
+// never decreases, even when state is cleared after a match.
+func TestRuleEngine_VersionCounterMonotonicallyIncreases(t *testing.T) {
+	// Create a rule that matches on a single event
+	rule := core.CorrelationRule{
+		ID:       "test-monotonic-version",
+		Name:     "Test Monotonic Version",
+		Sequence: []string{"test_event"},
+		Window:   5 * time.Minute,
+	}
+
+	engine := NewRuleEngine([]core.Rule{}, []core.CorrelationRule{rule}, 60)
+
+	var lastVersion uint64 = 0
+
+	// Send multiple events that will trigger matches and clear state
+	for i := 0; i < 10; i++ {
+		event := &core.Event{
+			EventID:   fmt.Sprintf("event-%d", i),
+			EventType: "test_event",
+			Timestamp: time.Now(),
+		}
+		engine.evaluateCorrelationRule(rule, event)
+
+		engine.shardsMu.RLock()
+		shard := engine.correlationShards[rule.ID]
+		engine.shardsMu.RUnlock()
+
+		shard.mu.RLock()
+		currentVersion := shard.version
+		shard.mu.RUnlock()
+
+		assert.GreaterOrEqual(t, currentVersion, lastVersion,
+			"Version should never decrease (was %d, now %d)", lastVersion, currentVersion)
+		lastVersion = currentVersion
+	}
+
+	// Final version should be at least 10 (one increment per evaluation)
+	assert.GreaterOrEqual(t, lastVersion, uint64(10), "Version should have incremented at least once per event")
 }

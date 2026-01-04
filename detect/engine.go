@@ -69,18 +69,38 @@ const (
 	cleanupMaxLockDuration = 10 * time.Millisecond
 )
 
+// ShardedCorrelationState holds correlation state for a single rule with its own lock.
+// This eliminates global lock contention - rules processing different event streams
+// never block each other, enabling true parallel correlation evaluation.
+//
+// Performance Impact:
+//   - Different rules can be processed concurrently without blocking
+//   - Optimistic locking conflicts only occur on the SAME rule
+//   - Cleanup can process rules in parallel without global lock
+//
+// Thread Safety:
+//   - All access to events/version must be under mu lock
+//   - RLock for reads, Lock for writes
+type ShardedCorrelationState struct {
+	mu      sync.RWMutex  // Per-rule lock (not global)
+	events  []*core.Event // Events in the correlation window
+	version uint64        // Version counter for optimistic locking
+}
+
 // RuleEngine evaluates rules against events
 type RuleEngine struct {
 	rules            []core.Rule
 	correlationRules []core.CorrelationRule
-	correlationState map[string][]*core.Event // ruleID -> events in window (legacy)
-	correlationVersion map[string]uint64      // ruleID -> version counter for optimistic locking
-	stateMu          sync.RWMutex             // protects rules and correlationRules slices
-	correlationMu    sync.RWMutex             // protects correlationState map (separate to avoid deadlock)
-	correlationTTL   int                      // seconds
-	cleanupCancel    context.CancelFunc       // for stopping cleanup goroutine
-	cleanupWg        sync.WaitGroup           // for waiting on cleanup goroutine
-	ctx              context.Context          // TASK 144.4: Parent context for SIGMA engine initialization
+	stateMu          sync.RWMutex // protects rules and correlationRules slices
+	correlationTTL   int          // seconds
+	cleanupCancel    context.CancelFunc
+	cleanupWg        sync.WaitGroup
+	ctx              context.Context // TASK 144.4: Parent context for SIGMA engine initialization
+
+	// Per-rule sharded correlation state - eliminates global lock contention
+	// Each rule has its own mutex, so rules processing different event streams never block
+	correlationShards map[string]*ShardedCorrelationState // ruleID -> sharded state
+	shardsMu          sync.RWMutex                        // protects the shards MAP (not contents)
 
 	// Incremental cleanup state - processes rules in batches to minimize lock contention
 	cleanupRuleIDs []string // snapshot of rule IDs to process in current cycle
@@ -190,8 +210,7 @@ func NewRuleEngineWithContext(parentCtx context.Context, rules []core.Rule, corr
 	re := &RuleEngine{
 		rules:                        rules,
 		correlationRules:             correlationRules,
-		correlationState:             make(map[string][]*core.Event),
-		correlationVersion:           make(map[string]uint64), // Version counter for optimistic locking
+		correlationShards:            make(map[string]*ShardedCorrelationState), // Per-rule sharded state
 		correlationTTL:               correlationTTL,
 		cleanupCancel:                cancel,
 		ctx:                          ctx, // TASK 144.4: Store context for SIGMA engine
@@ -305,12 +324,11 @@ func (re *RuleEngine) initializeSigmaEngineWithDefaults() {
 	re.sigmaEngineEnabled = true
 }
 
-// ResetCorrelationState clears the correlation state and version maps
+// ResetCorrelationState clears all correlation state shards
 func (re *RuleEngine) ResetCorrelationState() {
-	re.correlationMu.Lock()
-	defer re.correlationMu.Unlock()
-	re.correlationState = make(map[string][]*core.Event)
-	re.correlationVersion = make(map[string]uint64)
+	re.shardsMu.Lock()
+	defer re.shardsMu.Unlock()
+	re.correlationShards = make(map[string]*ShardedCorrelationState)
 }
 
 // ReloadRules atomically replaces the current rule set with a new one
@@ -354,12 +372,11 @@ func (re *RuleEngine) ReloadCorrelationRules(newRules []core.CorrelationRule) {
 	newCount := len(rulesCopy)
 	re.stateMu.Unlock()
 
-	// Reset correlation state and version counters when rules change
-	// Use correlationMu (not stateMu) for state operations
-	re.correlationMu.Lock()
-	re.correlationState = make(map[string][]*core.Event)
-	re.correlationVersion = make(map[string]uint64)
-	re.correlationMu.Unlock()
+	// Reset correlation state shards when rules change
+	// Use shardsMu (not stateMu) for state operations
+	re.shardsMu.Lock()
+	re.correlationShards = make(map[string]*ShardedCorrelationState)
+	re.shardsMu.Unlock()
 
 	// Log AFTER releasing locks to minimize critical section
 	log.Printf("INFO: Correlation rules reloaded - old=%d new=%d (state reset)", oldCount, newCount)
@@ -457,15 +474,17 @@ func (re *RuleEngine) SetHealthRecorder(recorder HealthRecorder) {
 // GetCorrelationStateStats returns statistics about correlation state memory usage
 // SECURITY: Provides visibility into memory consumption for monitoring
 func (re *RuleEngine) GetCorrelationStateStats() map[string]interface{} {
-	re.stateMu.RLock()
-	defer re.stateMu.RUnlock()
+	re.shardsMu.RLock()
+	defer re.shardsMu.RUnlock()
 
 	totalEvents := 0
-	totalRules := len(re.correlationState)
+	totalRules := len(re.correlationShards)
 	maxEventsInRule := 0
 
-	for _, events := range re.correlationState {
-		eventCount := len(events)
+	for _, shard := range re.correlationShards {
+		shard.mu.RLock()
+		eventCount := len(shard.events)
+		shard.mu.RUnlock()
 		totalEvents += eventCount
 		if eventCount > maxEventsInRule {
 			maxEventsInRule = eventCount
@@ -625,9 +644,8 @@ func (re *RuleEngine) startStateCleanup(ctx context.Context) {
 }
 
 // cleanupExpiredState removes expired entries from correlation state using incremental processing.
-// PERFORMANCE OPTIMIZATION: Instead of processing all rules in one lock hold, this processes
-// rules in small batches (cleanupBatchSize) with short lock durations to minimize impact
-// on concurrent correlation evaluations.
+// PERFORMANCE OPTIMIZATION: With per-rule sharding, each rule's cleanup uses its own lock,
+// so cleanup of one rule doesn't block evaluation of other rules.
 //
 // The cleanup maintains a cursor to track progress across multiple ticks:
 // - On first call (or after completing a full cycle), snapshots all rule IDs
@@ -646,14 +664,14 @@ func (re *RuleEngine) cleanupExpiredState() {
 
 	// Check if we need to start a new cleanup cycle
 	if re.cleanupCursor >= len(re.cleanupRuleIDs) {
-		// Snapshot current rule IDs under a brief lock
-		re.correlationMu.RLock()
-		re.cleanupRuleIDs = make([]string, 0, len(re.correlationState))
-		for ruleID := range re.correlationState {
+		// Snapshot current rule IDs under a brief shards map lock
+		re.shardsMu.RLock()
+		re.cleanupRuleIDs = make([]string, 0, len(re.correlationShards))
+		for ruleID := range re.correlationShards {
 			re.cleanupRuleIDs = append(re.cleanupRuleIDs, ruleID)
 		}
-		stateSize := len(re.correlationState)
-		re.correlationMu.RUnlock()
+		stateSize := len(re.correlationShards)
+		re.shardsMu.RUnlock()
 		re.cleanupCursor = 0
 
 		// Update state size metric
@@ -672,36 +690,31 @@ func (re *RuleEngine) cleanupExpiredState() {
 		batchEnd = len(re.cleanupRuleIDs)
 	}
 
-	// Process this batch with a lock
-	// Use a deadline to ensure we don't hold the lock too long
-	lockStartTime := time.Now()
 	rulesProcessed := 0
 	rulesExpired := 0
+	shardsToDelete := make([]string, 0)
 
-	re.correlationMu.Lock()
+	// Process this batch - each rule uses its own lock (no global lock needed)
 	for i := batchStart; i < batchEnd; i++ {
-		// Check if we've held the lock too long
-		if time.Since(lockStartTime) > cleanupMaxLockDuration {
-			// Release lock early, continue next tick
-			re.cleanupCursor = i
-			re.correlationMu.Unlock()
-
-			// Update metrics for partial batch
-			metrics.CorrelationCleanupRulesProcessed.Add(float64(rulesProcessed))
-			metrics.CorrelationCleanupRulesExpired.Add(float64(rulesExpired))
-			return
-		}
-
 		ruleID := re.cleanupRuleIDs[i]
-		events, exists := re.correlationState[ruleID]
+
+		// Get shard (brief read lock on shards map)
+		re.shardsMu.RLock()
+		shard, exists := re.correlationShards[ruleID]
+		re.shardsMu.RUnlock()
+
 		if !exists {
 			rulesProcessed++
 			continue
 		}
 
+		// Process this shard with its own lock (doesn't block other rules)
+		shard.mu.Lock()
+		events := shard.events
+
 		if len(events) == 0 {
-			delete(re.correlationState, ruleID)
-			re.correlationVersion[ruleID]++
+			shardsToDelete = append(shardsToDelete, ruleID)
+			shard.mu.Unlock()
 			rulesProcessed++
 			rulesExpired++
 			continue
@@ -716,19 +729,37 @@ func (re *RuleEngine) cleanupExpiredState() {
 			})
 
 			if validIdx >= len(events) {
-				// All events expired
-				delete(re.correlationState, ruleID)
-				re.correlationVersion[ruleID]++
+				// All events expired - mark for deletion
+				shard.events = nil
+				shard.version++
+				shardsToDelete = append(shardsToDelete, ruleID)
 				rulesExpired++
 			} else {
 				// Keep only valid events
-				re.correlationState[ruleID] = events[validIdx:]
-				re.correlationVersion[ruleID]++
+				shard.events = events[validIdx:]
+				shard.version++
 			}
 		}
+		shard.mu.Unlock()
 		rulesProcessed++
 	}
-	re.correlationMu.Unlock()
+
+	// Delete empty shards (brief write lock on shards map)
+	if len(shardsToDelete) > 0 {
+		re.shardsMu.Lock()
+		for _, ruleID := range shardsToDelete {
+			// Double-check the shard is still empty before deleting
+			if shard, exists := re.correlationShards[ruleID]; exists {
+				shard.mu.RLock()
+				isEmpty := len(shard.events) == 0
+				shard.mu.RUnlock()
+				if isEmpty {
+					delete(re.correlationShards, ruleID)
+				}
+			}
+		}
+		re.shardsMu.Unlock()
+	}
 
 	// Update cursor for next tick
 	re.cleanupCursor = batchEnd
@@ -1078,37 +1109,34 @@ func mergeAndFilterEvents(currentState []*core.Event, event *core.Event, rule co
 
 // evaluateCorrelationRule checks if a correlation rule matches based on event sequence
 // SECURITY: Enforces memory limits to prevent unbounded growth of correlation state
-// PERFORMANCE: Minimizes lock contention by performing expensive operations outside critical section
-// CONCURRENCY: Uses optimistic locking to prevent race conditions during state updates
+// PERFORMANCE: Uses per-rule sharding to eliminate global lock contention
+// CONCURRENCY: Uses optimistic locking within each shard to prevent race conditions
 // TASK 148.4: Refactored to use extracted helper functions for lower complexity
 // TASK 225.3: Instrumented with health metrics recording
 func (re *RuleEngine) evaluateCorrelationRule(rule core.CorrelationRule, event *core.Event) bool {
 	// TASK 225.3: Record evaluation start time for latency tracking
 	start := time.Now()
 
-	// STEP 1: Read current state with shared lock (allows concurrent reads)
-	re.correlationMu.RLock()
-	_, ruleExists := re.correlationState[rule.ID]
-
-	// SECURITY: Check if we've hit the maximum number of tracked rules
-	if !ruleExists && len(re.correlationState) >= MaxCorrelationRulesTracked {
-		re.correlationMu.RUnlock()
-		// TASK 225.3: Record error when rule limit exceeded
+	// STEP 1: Get or create the shard for this rule
+	// Uses brief shardsMu lock, then per-rule shard.mu for actual state access
+	shard := re.getOrCreateShard(rule.ID)
+	if shard == nil {
+		// Limit exceeded - shard creation failed
 		if re.healthRecorder != nil {
 			re.healthRecorder.RecordError(rule.ID, HealthErrorLimitExceeded, "maximum correlation rules tracked exceeded")
 		}
 		return false
 	}
 
-	// Make a deep copy of the event slice to work with outside the lock
-	// Also capture the version for optimistic locking
-	existingEvents := re.correlationState[rule.ID]
-	originalVersion := re.correlationVersion[rule.ID]
-	eventsCopy := make([]*core.Event, len(existingEvents))
-	copy(eventsCopy, existingEvents)
-	re.correlationMu.RUnlock()
+	// STEP 2: Read current state with per-rule shared lock
+	// This allows concurrent reads of the SAME rule while other rules proceed independently
+	shard.mu.RLock()
+	originalVersion := shard.version
+	eventsCopy := make([]*core.Event, len(shard.events))
+	copy(eventsCopy, shard.events)
+	shard.mu.RUnlock()
 
-	// STEP 2: Process events outside lock
+	// STEP 3: Process events outside lock (expensive computation)
 	// processCorrelationEvents handles adding the new event internally
 	result := processCorrelationEvents(eventsCopy, event, rule, re.correlationTTL)
 
@@ -1116,44 +1144,28 @@ func (re *RuleEngine) evaluateCorrelationRule(rule core.CorrelationRule, event *
 	// TASK #184: Conditions field removed - correlation rules match based on sequence only
 	matched := checkSequenceMatch(result.windowedEvents, rule.Sequence)
 
-	// STEP 3: Update state with write lock
-	re.correlationMu.Lock()
-	defer re.correlationMu.Unlock()
-
-	currentVersion := re.correlationVersion[rule.ID]
+	// STEP 4: Update state with per-rule write lock
+	shard.mu.Lock()
 
 	// Check if state changed during processing (optimistic locking via version counter)
-	// Version check is more reliable than length check - catches add+remove same count
-	if currentVersion != originalVersion {
+	if shard.version != originalVersion {
 		// State was modified concurrently - merge changes
-		currentState := re.correlationState[rule.ID]
-		finalEvents := mergeAndFilterEvents(currentState, event, rule, re.correlationTTL)
-		if len(finalEvents) == 0 {
-			delete(re.correlationState, rule.ID)
-			re.correlationVersion[rule.ID]++ // Increment, don't delete - prevents ABA
-		} else {
-			re.correlationState[rule.ID] = finalEvents
-			re.correlationVersion[rule.ID] = currentVersion + 1
-		}
+		finalEvents := mergeAndFilterEvents(shard.events, event, rule, re.correlationTTL)
+		shard.events = finalEvents
+		shard.version++
 	} else {
 		// State unchanged, commit our results
-		if len(result.windowedEvents) == 0 {
-			delete(re.correlationState, rule.ID)
-			re.correlationVersion[rule.ID]++ // Increment, don't delete - prevents ABA
-		} else {
-			re.correlationState[rule.ID] = result.windowedEvents
-			re.correlationVersion[rule.ID] = originalVersion + 1
-		}
+		shard.events = result.windowedEvents
+		shard.version = originalVersion + 1
 	}
 
 	// Clear state after successful match
-	// IMPORTANT: Increment version instead of deleting to prevent ABA problem
-	// If we delete version and new events recreate state back to same version number,
-	// concurrent readers would think nothing changed
 	if matched {
-		delete(re.correlationState, rule.ID)
-		re.correlationVersion[rule.ID]++ // Increment, don't delete - prevents ABA
+		shard.events = nil
+		shard.version++
 	}
+
+	shard.mu.Unlock()
 
 	// TASK 225.3: Record successful evaluation with latency
 	if re.healthRecorder != nil {
@@ -1162,6 +1174,43 @@ func (re *RuleEngine) evaluateCorrelationRule(rule core.CorrelationRule, event *
 	}
 
 	return matched
+}
+
+// getOrCreateShard returns the correlation state shard for a rule, creating it if needed.
+// Returns nil if the maximum number of tracked rules has been reached.
+// PERFORMANCE: Brief shardsMu lock for map access, then uses per-shard locks for state.
+func (re *RuleEngine) getOrCreateShard(ruleID string) *ShardedCorrelationState {
+	// Fast path: check if shard already exists (read lock)
+	re.shardsMu.RLock()
+	shard, exists := re.correlationShards[ruleID]
+	shardCount := len(re.correlationShards)
+	re.shardsMu.RUnlock()
+
+	if exists {
+		return shard
+	}
+
+	// Slow path: need to create shard (write lock)
+	re.shardsMu.Lock()
+	defer re.shardsMu.Unlock()
+
+	// Double-check after acquiring write lock (another goroutine may have created it)
+	if shard, exists = re.correlationShards[ruleID]; exists {
+		return shard
+	}
+
+	// SECURITY: Check if we've hit the maximum number of tracked rules
+	if shardCount >= MaxCorrelationRulesTracked {
+		return nil
+	}
+
+	// Create new shard
+	shard = &ShardedCorrelationState{
+		events:  nil,
+		version: 0,
+	}
+	re.correlationShards[ruleID] = shard
+	return shard
 }
 
 // evaluateRule checks if a rule matches the event
