@@ -110,7 +110,7 @@ func TestHashEvent(t *testing.T) {
 		{
 			name: "identical events produce same hash",
 			event1: &core.Event{
-				RawData:   "test log line",
+				RawData:   []byte(`"test log line"`),
 				Timestamp: timestamp,
 				Fields: map[string]interface{}{
 					"source_ip":  "192.168.1.1",
@@ -118,7 +118,7 @@ func TestHashEvent(t *testing.T) {
 				},
 			},
 			event2: &core.Event{
-				RawData:   "test log line",
+				RawData:   []byte(`"test log line"`),
 				Timestamp: timestamp,
 				Fields: map[string]interface{}{
 					"source_ip":  "192.168.1.1",
@@ -130,7 +130,7 @@ func TestHashEvent(t *testing.T) {
 		{
 			name: "different raw data produces different hash",
 			event1: &core.Event{
-				RawData:   "test log line 1",
+				RawData:   []byte(`"test log line 1"`),
 				Timestamp: timestamp,
 				Fields: map[string]interface{}{
 					"source_ip":  "192.168.1.1",
@@ -138,7 +138,7 @@ func TestHashEvent(t *testing.T) {
 				},
 			},
 			event2: &core.Event{
-				RawData:   "test log line 2",
+				RawData:   []byte(`"test log line 2"`),
 				Timestamp: timestamp,
 				Fields: map[string]interface{}{
 					"source_ip":  "192.168.1.1",
@@ -150,7 +150,7 @@ func TestHashEvent(t *testing.T) {
 		{
 			name: "different timestamp produces different hash",
 			event1: &core.Event{
-				RawData:   "test log line",
+				RawData:   []byte(`"test log line"`),
 				Timestamp: timestamp,
 				Fields: map[string]interface{}{
 					"source_ip":  "192.168.1.1",
@@ -158,7 +158,7 @@ func TestHashEvent(t *testing.T) {
 				},
 			},
 			event2: &core.Event{
-				RawData:   "test log line",
+				RawData:   []byte(`"test log line"`),
 				Timestamp: timestamp.Add(time.Second),
 				Fields: map[string]interface{}{
 					"source_ip":  "192.168.1.1",
@@ -170,7 +170,7 @@ func TestHashEvent(t *testing.T) {
 		{
 			name: "different source_ip produces different hash",
 			event1: &core.Event{
-				RawData:   "test log line",
+				RawData:   []byte(`"test log line"`),
 				Timestamp: timestamp,
 				Fields: map[string]interface{}{
 					"source_ip":  "192.168.1.1",
@@ -178,7 +178,7 @@ func TestHashEvent(t *testing.T) {
 				},
 			},
 			event2: &core.Event{
-				RawData:   "test log line",
+				RawData:   []byte(`"test log line"`),
 				Timestamp: timestamp,
 				Fields: map[string]interface{}{
 					"source_ip":  "192.168.1.2",
@@ -190,12 +190,12 @@ func TestHashEvent(t *testing.T) {
 		{
 			name: "missing fields uses defaults",
 			event1: &core.Event{
-				RawData:   "test log line",
+				RawData:   []byte(`"test log line"`),
 				Timestamp: timestamp,
 				Fields:    nil,
 			},
 			event2: &core.Event{
-				RawData:   "test log line",
+				RawData:   []byte(`"test log line"`),
 				Timestamp: timestamp,
 				Fields:    map[string]interface{}{},
 			},
@@ -528,7 +528,7 @@ func TestDeduplication(t *testing.T) {
 	// Create two identical events
 	event1 := &core.Event{
 		EventID:   "event1",
-		RawData:   "test log",
+		RawData:   []byte(`"test log"`),
 		Timestamp: time.Now(),
 		Fields: map[string]interface{}{
 			"source_ip":  "192.168.1.1",
@@ -538,7 +538,7 @@ func TestDeduplication(t *testing.T) {
 
 	event2 := &core.Event{
 		EventID:   "event2", // Different ID
-		RawData:   "test log",
+		RawData:   []byte(`"test log"`),
 		Timestamp: event1.Timestamp, // Same timestamp
 		Fields: map[string]interface{}{
 			"source_ip":  "192.168.1.1",
@@ -654,7 +654,7 @@ func TestHashEvent_EdgeCases(t *testing.T) {
 		{
 			name: "nil fields",
 			event: &core.Event{
-				RawData:   "test",
+				RawData:   []byte(`"test"`),
 				Timestamp: timestamp,
 				Fields:    nil,
 			},
@@ -662,7 +662,7 @@ func TestHashEvent_EdgeCases(t *testing.T) {
 		{
 			name: "empty fields",
 			event: &core.Event{
-				RawData:   "test",
+				RawData:   []byte(`"test"`),
 				Timestamp: timestamp,
 				Fields:    map[string]interface{}{},
 			},
@@ -670,7 +670,7 @@ func TestHashEvent_EdgeCases(t *testing.T) {
 		{
 			name: "non-string source_ip",
 			event: &core.Event{
-				RawData:   "test",
+				RawData:   []byte(`"test"`),
 				Timestamp: timestamp,
 				Fields: map[string]interface{}{
 					"source_ip": 12345,
@@ -680,7 +680,7 @@ func TestHashEvent_EdgeCases(t *testing.T) {
 		{
 			name: "non-string event_type",
 			event: &core.Event{
-				RawData:   "test",
+				RawData:   []byte(`"test"`),
 				Timestamp: timestamp,
 				Fields: map[string]interface{}{
 					"event_type": true,
@@ -690,7 +690,7 @@ func TestHashEvent_EdgeCases(t *testing.T) {
 		{
 			name: "empty raw data",
 			event: &core.Event{
-				RawData:   "",
+				RawData:   []byte(`""`),
 				Timestamp: timestamp,
 				Fields:    nil,
 			},
@@ -701,6 +701,374 @@ func TestHashEvent_EdgeCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			hash := storage.hashEvent(tt.event)
 			assert.NotEmpty(t, hash, "Hash should not be empty for %s", tt.name)
+		})
+	}
+}
+
+// TestCanonicalJSON_KeyOrder tests that canonical JSON produces same hash regardless of key order
+func TestCanonicalJSON_KeyOrder(t *testing.T) {
+	ch := &ClickHouse{}
+	cfg := &config.Config{}
+	cfg.Storage.DedupCacheSize = 1000
+	cfg.Storage.DedupCanonical = true
+	cfg.ClickHouse.BatchSize = 1000
+	eventCh := make(chan *core.Event, 100)
+	logger := zap.NewNop().Sugar()
+
+	ctx := context.Background()
+	storage, err := NewClickHouseEventStorage(ctx, ch, cfg, eventCh, logger)
+	require.NoError(t, err)
+	require.True(t, storage.useCanonicalHash, "useCanonicalHash should be enabled")
+
+	timestamp := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	// Same logical data but different key order
+	event1 := &core.Event{
+		Timestamp: timestamp,
+		Fields: map[string]interface{}{
+			"alpha": "first",
+			"beta":  "second",
+			"gamma": "third",
+		},
+	}
+
+	event2 := &core.Event{
+		Timestamp: timestamp,
+		Fields: map[string]interface{}{
+			"gamma": "third",
+			"alpha": "first",
+			"beta":  "second",
+		},
+	}
+
+	hash1 := storage.hashEvent(event1)
+	hash2 := storage.hashEvent(event2)
+
+	assert.Equal(t, hash1, hash2, "Same fields with different key order should produce same hash")
+}
+
+// TestCanonicalJSON_NestedObjects tests canonical hashing with nested objects
+func TestCanonicalJSON_NestedObjects(t *testing.T) {
+	ch := &ClickHouse{}
+	cfg := &config.Config{}
+	cfg.Storage.DedupCacheSize = 1000
+	cfg.Storage.DedupCanonical = true
+	cfg.ClickHouse.BatchSize = 1000
+	eventCh := make(chan *core.Event, 100)
+	logger := zap.NewNop().Sugar()
+
+	ctx := context.Background()
+	storage, err := NewClickHouseEventStorage(ctx, ch, cfg, eventCh, logger)
+	require.NoError(t, err)
+
+	timestamp := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	// Nested object with different key orders at each level
+	event1 := &core.Event{
+		Timestamp: timestamp,
+		Fields: map[string]interface{}{
+			"outer_a": map[string]interface{}{
+				"inner_x": "value1",
+				"inner_y": "value2",
+			},
+			"outer_b": "simple",
+		},
+	}
+
+	event2 := &core.Event{
+		Timestamp: timestamp,
+		Fields: map[string]interface{}{
+			"outer_b": "simple",
+			"outer_a": map[string]interface{}{
+				"inner_y": "value2",
+				"inner_x": "value1",
+			},
+		},
+	}
+
+	hash1 := storage.hashEvent(event1)
+	hash2 := storage.hashEvent(event2)
+
+	assert.Equal(t, hash1, hash2, "Nested objects with different key order should produce same hash")
+}
+
+// TestCanonicalJSON_Arrays tests canonical hashing with arrays
+func TestCanonicalJSON_Arrays(t *testing.T) {
+	ch := &ClickHouse{}
+	cfg := &config.Config{}
+	cfg.Storage.DedupCacheSize = 1000
+	cfg.Storage.DedupCanonical = true
+	cfg.ClickHouse.BatchSize = 1000
+	eventCh := make(chan *core.Event, 100)
+	logger := zap.NewNop().Sugar()
+
+	ctx := context.Background()
+	storage, err := NewClickHouseEventStorage(ctx, ch, cfg, eventCh, logger)
+	require.NoError(t, err)
+
+	timestamp := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	event := &core.Event{
+		Timestamp: timestamp,
+		Fields: map[string]interface{}{
+			"items": []interface{}{"a", "b", "c"},
+			"numbers": []interface{}{float64(1), float64(2), float64(3)},
+		},
+	}
+
+	hash := storage.hashEvent(event)
+	assert.NotEmpty(t, hash)
+
+	// Arrays preserve order (arrays are positional, not sets)
+	event2 := &core.Event{
+		Timestamp: timestamp,
+		Fields: map[string]interface{}{
+			"items": []interface{}{"c", "b", "a"}, // Different order
+			"numbers": []interface{}{float64(1), float64(2), float64(3)},
+		},
+	}
+
+	hash2 := storage.hashEvent(event2)
+	assert.NotEqual(t, hash, hash2, "Arrays with different element order should produce different hashes")
+}
+
+// TestCanonicalJSON_DataTypes tests canonical hashing handles all data types
+func TestCanonicalJSON_DataTypes(t *testing.T) {
+	ch := &ClickHouse{}
+	cfg := &config.Config{}
+	cfg.Storage.DedupCacheSize = 1000
+	cfg.Storage.DedupCanonical = true
+	cfg.ClickHouse.BatchSize = 1000
+	eventCh := make(chan *core.Event, 100)
+	logger := zap.NewNop().Sugar()
+
+	ctx := context.Background()
+	storage, err := NewClickHouseEventStorage(ctx, ch, cfg, eventCh, logger)
+	require.NoError(t, err)
+
+	timestamp := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	event := &core.Event{
+		Timestamp: timestamp,
+		Fields: map[string]interface{}{
+			"string":  "hello",
+			"number":  float64(42.5),
+			"integer": float64(100), // JSON numbers are float64 in Go
+			"boolean": true,
+			"null":    nil,
+			"nested": map[string]interface{}{
+				"key": "value",
+			},
+			"array": []interface{}{"a", float64(1), true},
+		},
+	}
+
+	hash := storage.hashEvent(event)
+	assert.NotEmpty(t, hash)
+	assert.Len(t, hash, 64, "SHA256 hex hash should be 64 characters")
+}
+
+// TestCanonicalVsLegacy_FallbackBehavior tests that legacy mode is used when canonical is disabled
+func TestCanonicalVsLegacy_FallbackBehavior(t *testing.T) {
+	ch := &ClickHouse{}
+	cfg := &config.Config{}
+	cfg.Storage.DedupCacheSize = 1000
+	cfg.Storage.DedupCanonical = false // Disable canonical
+	cfg.ClickHouse.BatchSize = 1000
+	eventCh := make(chan *core.Event, 100)
+	logger := zap.NewNop().Sugar()
+
+	ctx := context.Background()
+	storage, err := NewClickHouseEventStorage(ctx, ch, cfg, eventCh, logger)
+	require.NoError(t, err)
+	require.False(t, storage.useCanonicalHash, "useCanonicalHash should be disabled")
+
+	timestamp := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	// Same logical data but different key order in raw JSON
+	event1 := &core.Event{
+		RawData:   []byte(`{"a":"1","b":"2"}`),
+		Timestamp: timestamp,
+		Fields: map[string]interface{}{
+			"a": "1",
+			"b": "2",
+		},
+	}
+
+	event2 := &core.Event{
+		RawData:   []byte(`{"b":"2","a":"1"}`), // Different order in raw
+		Timestamp: timestamp,
+		Fields: map[string]interface{}{
+			"b": "2",
+			"a": "1",
+		},
+	}
+
+	hash1 := storage.hashEvent(event1)
+	hash2 := storage.hashEvent(event2)
+
+	// Legacy mode uses raw data, so different raw order = different hash
+	assert.NotEqual(t, hash1, hash2, "Legacy mode should produce different hashes for different raw JSON order")
+}
+
+// TestCanonicalJSON_NilFields_FallsBackToLegacy tests fallback when Fields is nil
+func TestCanonicalJSON_NilFields_FallsBackToLegacy(t *testing.T) {
+	ch := &ClickHouse{}
+	cfg := &config.Config{}
+	cfg.Storage.DedupCacheSize = 1000
+	cfg.Storage.DedupCanonical = true
+	cfg.ClickHouse.BatchSize = 1000
+	eventCh := make(chan *core.Event, 100)
+	logger := zap.NewNop().Sugar()
+
+	ctx := context.Background()
+	storage, err := NewClickHouseEventStorage(ctx, ch, cfg, eventCh, logger)
+	require.NoError(t, err)
+
+	timestamp := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	event := &core.Event{
+		RawData:   []byte(`"test"`),
+		Timestamp: timestamp,
+		Fields:    nil, // Nil fields should fall back to legacy
+	}
+
+	hash := storage.hashEvent(event)
+	assert.NotEmpty(t, hash, "Should produce hash even with nil Fields")
+}
+
+// BenchmarkHashEvent_Legacy benchmarks legacy hash function
+func BenchmarkHashEvent_Legacy(b *testing.B) {
+	ch := &ClickHouse{}
+	cfg := &config.Config{}
+	cfg.Storage.DedupCacheSize = 1000
+	cfg.Storage.DedupCanonical = false
+	cfg.ClickHouse.BatchSize = 1000
+	eventCh := make(chan *core.Event, 100)
+	logger := zap.NewNop().Sugar()
+
+	ctx := context.Background()
+	storage, _ := NewClickHouseEventStorage(ctx, ch, cfg, eventCh, logger)
+
+	event := &core.Event{
+		RawData:   []byte(`{"EventID":4624,"Computer":"DESKTOP-TEST","Channel":"Security","User":"admin"}`),
+		Timestamp: time.Now(),
+		Fields: map[string]interface{}{
+			"EventID":  float64(4624),
+			"Computer": "DESKTOP-TEST",
+			"Channel":  "Security",
+			"User":     "admin",
+		},
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		storage.hashEvent(event)
+	}
+}
+
+// BenchmarkHashEvent_Canonical benchmarks canonical hash function
+func BenchmarkHashEvent_Canonical(b *testing.B) {
+	ch := &ClickHouse{}
+	cfg := &config.Config{}
+	cfg.Storage.DedupCacheSize = 1000
+	cfg.Storage.DedupCanonical = true
+	cfg.ClickHouse.BatchSize = 1000
+	eventCh := make(chan *core.Event, 100)
+	logger := zap.NewNop().Sugar()
+
+	ctx := context.Background()
+	storage, _ := NewClickHouseEventStorage(ctx, ch, cfg, eventCh, logger)
+
+	event := &core.Event{
+		Timestamp: time.Now(),
+		Fields: map[string]interface{}{
+			"EventID":  float64(4624),
+			"Computer": "DESKTOP-TEST",
+			"Channel":  "Security",
+			"User":     "admin",
+		},
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		storage.hashEvent(event)
+	}
+}
+
+// PIPELINE FIX: Test isRetryableError function for retry logic
+func TestIsRetryableError(t *testing.T) {
+	testCases := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "nil error is not retryable",
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "connection refused is retryable",
+			err:      fmt.Errorf("dial tcp 127.0.0.1:9000: connection refused"),
+			expected: true,
+		},
+		{
+			name:     "connection reset is retryable",
+			err:      fmt.Errorf("read tcp: connection reset by peer"),
+			expected: true,
+		},
+		{
+			name:     "timeout is retryable",
+			err:      fmt.Errorf("dial tcp: read timeout"),
+			expected: true,
+		},
+		{
+			name:     "i/o timeout is retryable",
+			err:      fmt.Errorf("read tcp: i/o timeout"),
+			expected: true,
+		},
+		{
+			name:     "EOF is retryable",
+			err:      fmt.Errorf("unexpected EOF"),
+			expected: true,
+		},
+		{
+			name:     "server overloaded is retryable",
+			err:      fmt.Errorf("server is overloaded"),
+			expected: true,
+		},
+		{
+			name:     "too many connections is retryable",
+			err:      fmt.Errorf("too many connections"),
+			expected: true,
+		},
+		{
+			name:     "temporary failure is retryable",
+			err:      fmt.Errorf("temporary failure in name resolution"),
+			expected: true,
+		},
+		{
+			name:     "schema error is not retryable",
+			err:      fmt.Errorf("code: 117, message: Unknown column 'foo'"),
+			expected: false,
+		},
+		{
+			name:     "syntax error is not retryable",
+			err:      fmt.Errorf("code: 62, message: Syntax error"),
+			expected: false,
+		},
+		{
+			name:     "permission denied is not retryable",
+			err:      fmt.Errorf("code: 516, message: Authentication failed"),
+			expected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := isRetryableError(tc.err)
+			assert.Equal(t, tc.expected, result, "isRetryableError(%v) should be %v", tc.err, tc.expected)
 		})
 	}
 }

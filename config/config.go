@@ -55,20 +55,31 @@ type Config struct {
 	} `mapstructure:"mongodb"`
 
 	Listeners struct {
+		// UseLegacyListeners controls whether hardcoded listeners are started.
+		// When true (default), hardcoded listeners are used for backward compatibility.
+		// When false, only dynamic listeners from the database are used.
+		// Set to false for production deployments using API-managed listeners.
+		UseLegacyListeners bool `mapstructure:"use_legacy_listeners"`
 		Syslog struct {
-			Port int    `mapstructure:"port"`
-			Host string `mapstructure:"host"`
+			Enabled      bool   `mapstructure:"enabled"`
+			Port         int    `mapstructure:"port"`
+			Host         string `mapstructure:"host"`
+			FieldMapping string `mapstructure:"field_mapping"` // Field mapping ID for category rules
 		} `mapstructure:"syslog"`
 		CEF struct {
-			Port int    `mapstructure:"port"`
-			Host string `mapstructure:"host"`
+			Enabled      bool   `mapstructure:"enabled"`
+			Port         int    `mapstructure:"port"`
+			Host         string `mapstructure:"host"`
+			FieldMapping string `mapstructure:"field_mapping"` // Field mapping ID for category rules
 		} `mapstructure:"cef"`
 		JSON struct {
-			Port     int    `mapstructure:"port"`
-			Host     string `mapstructure:"host"`
-			TLS      bool   `mapstructure:"tls"`
-			CertFile string `mapstructure:"cert_file"`
-			KeyFile  string `mapstructure:"key_file"`
+			Enabled      bool   `mapstructure:"enabled"`
+			Port         int    `mapstructure:"port"`
+			Host         string `mapstructure:"host"`
+			TLS          bool   `mapstructure:"tls"`
+			CertFile     string `mapstructure:"cert_file"`
+			KeyFile      string `mapstructure:"key_file"`
+			FieldMapping string `mapstructure:"field_mapping"` // Field mapping ID for category rules
 		} `mapstructure:"json"`
 		Fluentd struct {
 			Port           int    `mapstructure:"port"`
@@ -159,6 +170,7 @@ type Config struct {
 		Deduplication     bool `mapstructure:"deduplication"`
 		DedupCacheSize    int  `mapstructure:"dedup_cache_size"`
 		DedupEvictionSize int  `mapstructure:"dedup_eviction_size"`
+		DedupCanonical    bool `mapstructure:"dedup_canonical"` // Use canonical JSON hashing for format-agnostic deduplication
 		BufferSize        int  `mapstructure:"buffer_size"`
 	} `mapstructure:"storage"`
 
@@ -257,6 +269,12 @@ type Config struct {
 		MaxPoolSize   int    `mapstructure:"max_pool_size"`
 		BatchSize     int    `mapstructure:"batch_size"`
 		FlushInterval int    `mapstructure:"flush_interval"` // seconds
+
+		// PIPELINE FIX: Separate configuration for alert storage
+		// Alerts are less frequent than events and benefit from smaller batches
+		AlertBatchSize     int `mapstructure:"alert_batch_size"`      // Default: BatchSize/10 if not set
+		AlertWorkerCount   int `mapstructure:"alert_worker_count"`    // Default: same as Engine.WorkerCount if not set
+		AlertFlushInterval int `mapstructure:"alert_flush_interval"`  // seconds, Default: same as FlushInterval
 	} `mapstructure:"clickhouse"`
 
 	ML struct {
@@ -325,6 +343,9 @@ type Config struct {
 	FieldMappings struct {
 		// YAMLPath is the path to the field mappings YAML file
 		YAMLPath string `mapstructure:"yaml_path"`
+		// BuiltInDir is the directory containing built-in field mapping JSON files
+		// TASK 248: JSON files provide richer definitions with category rules
+		BuiltInDir string `mapstructure:"builtin_dir"`
 	} `mapstructure:"field_mappings"`
 
 	// IOCFeeds configuration for Threat Intelligence IOC feeds
@@ -344,6 +365,51 @@ type Config struct {
 		// DefaultAutoExpireDays is the default expiration for IOCs without explicit expiration (0 = never)
 		DefaultAutoExpireDays int `mapstructure:"default_auto_expire_days"`
 	} `mapstructure:"ioc_feeds"`
+
+	// IOCDetection configuration for real-time IOC matching
+	IOCDetection struct {
+		// Enabled controls whether IOC detection is active
+		Enabled bool `mapstructure:"enabled"`
+
+		// RefreshSeconds is how often to refresh IOCs from storage into cache
+		RefreshSeconds int `mapstructure:"refresh_seconds"`
+
+		// BloomSize is the expected number of IOCs for bloom filter sizing
+		BloomSize uint `mapstructure:"bloom_size"`
+
+		// BloomFPRate is the target false positive rate for bloom filter (0.0-1.0)
+		BloomFPRate float64 `mapstructure:"bloom_fp_rate"`
+
+		// LRUSize is the number of hot IOCs to keep in memory
+		LRUSize int `mapstructure:"lru_size"`
+
+		// DedupeWindowSeconds is the time window for alert deduplication
+		DedupeWindowSeconds int `mapstructure:"dedupe_window_seconds"`
+
+		// MaxAlertsPerMinute rate limits IOC alert generation
+		MaxAlertsPerMinute int `mapstructure:"max_alerts_per_minute"`
+	} `mapstructure:"ioc_detection"`
+
+	// IOCHunting configuration for retroactive IOC hunting
+	IOCHunting struct {
+		// Enabled controls whether IOC hunting is active
+		Enabled bool `mapstructure:"enabled"`
+
+		// AutoHuntOnAdd triggers a hunt when new IOCs are added
+		AutoHuntOnAdd bool `mapstructure:"auto_hunt_on_add"`
+
+		// AutoHuntLookbackHours is how far back to search when auto-hunting
+		AutoHuntLookbackHours int `mapstructure:"auto_hunt_lookback_hours"`
+
+		// MaxConcurrentHunts limits concurrent hunt jobs
+		MaxConcurrentHunts int `mapstructure:"max_concurrent_hunts"`
+
+		// DefaultBatchSize is the number of events to process per batch
+		DefaultBatchSize int `mapstructure:"default_batch_size"`
+
+		// MaxEventsPerHunt limits total events scanned per hunt
+		MaxEventsPerHunt int64 `mapstructure:"max_events_per_hunt"`
+	} `mapstructure:"ioc_hunting"`
 }
 
 // setDefaults sets default configuration values
@@ -363,6 +429,14 @@ func setDefaults() {
 	viper.SetDefault("mongodb.enabled", true)
 	viper.SetDefault("mongodb.batch_insert_timeout", 5)
 	viper.SetDefault("mongodb.max_pool_size", 10)
+
+	// Listener system defaults
+	// use_legacy_listeners: true for backward compatibility with existing deployments
+	// Set to false to use only dynamic listeners managed via API
+	viper.SetDefault("listeners.use_legacy_listeners", true)
+	viper.SetDefault("listeners.syslog.enabled", true)
+	viper.SetDefault("listeners.cef.enabled", true)
+	viper.SetDefault("listeners.json.enabled", true)
 	viper.SetDefault("listeners.syslog.port", 514)
 	viper.SetDefault("listeners.syslog.host", "0.0.0.0")
 	viper.SetDefault("listeners.cef.port", 515)
@@ -426,10 +500,16 @@ func setDefaults() {
 	viper.SetDefault("storage.dedup_cache_size", 10000)
 	viper.SetDefault("storage.deduplication", true)
 	viper.SetDefault("storage.dedup_eviction_size", 1000)
+	viper.SetDefault("storage.dedup_canonical", true) // Use canonical JSON hashing for format-agnostic dedup
 	viper.SetDefault("storage.buffer_size", 100)
-	viper.SetDefault("engine.channel_buffer_size", 1000)
+	// PERFORMANCE OPTIMIZATION: Increased channel buffer from 1K to 100K
+	// This prevents backpressure-induced event drops during burst traffic
+	// Memory impact: ~100K events × ~1KB = ~100MB additional buffer memory
+	viper.SetDefault("engine.channel_buffer_size", 100000)
 	viper.SetDefault("engine.worker_count", 4)
-	viper.SetDefault("engine.action_worker_count", 5)
+	// PERFORMANCE OPTIMIZATION: Increased action workers from 5 to 16
+	// This improves alert processing throughput during high detection rates
+	viper.SetDefault("engine.action_worker_count", 16)
 	viper.SetDefault("engine.rate_limit", 1000)
 	viper.SetDefault("engine.correlation_state_ttl", 3600) // 1 hour
 	viper.SetDefault("engine.action_timeout", 10)          // seconds
@@ -498,11 +578,28 @@ func setDefaults() {
 	viper.SetDefault("feeds.default_feed.min_severity", "medium")                      // Only import medium+ severity rules
 
 	// IOC Feed system defaults - Threat Intelligence feeds
-	viper.SetDefault("ioc_feeds.enabled", true)                       // Enable IOC feed system by default
-	viper.SetDefault("ioc_feeds.sync_on_startup", false)              // Don't sync on startup by default (requires feeds to be configured first)
-	viper.SetDefault("ioc_feeds.scheduler_enabled", true)             // Enable scheduled syncs
-	viper.SetDefault("ioc_feeds.expiration_check_interval", "1h")     // Check for expired IOCs every hour
-	viper.SetDefault("ioc_feeds.default_auto_expire_days", 30)        // Default 30 days expiration for IOCs
+	viper.SetDefault("ioc_feeds.enabled", true)                   // Enable IOC feed system by default
+	viper.SetDefault("ioc_feeds.sync_on_startup", false)          // Don't sync on startup by default (requires feeds to be configured first)
+	viper.SetDefault("ioc_feeds.scheduler_enabled", true)         // Enable scheduled syncs
+	viper.SetDefault("ioc_feeds.expiration_check_interval", "1h") // Check for expired IOCs every hour
+	viper.SetDefault("ioc_feeds.default_auto_expire_days", 30)    // Default 30 days expiration for IOCs
+
+	// IOC Detection defaults - Real-time IOC matching
+	viper.SetDefault("ioc_detection.enabled", true)              // Enable IOC detection by default
+	viper.SetDefault("ioc_detection.refresh_seconds", 60)        // Refresh IOCs every 60 seconds
+	viper.SetDefault("ioc_detection.bloom_size", 100000)         // Expect up to 100k IOCs
+	viper.SetDefault("ioc_detection.bloom_fp_rate", 0.01)        // 1% false positive rate
+	viper.SetDefault("ioc_detection.lru_size", 10000)            // Keep 10k hot IOCs in LRU
+	viper.SetDefault("ioc_detection.dedupe_window_seconds", 300) // 5 minute dedupe window
+	viper.SetDefault("ioc_detection.max_alerts_per_minute", 100) // Rate limit IOC alerts
+
+	// IOC Hunting defaults - Retroactive IOC hunting
+	viper.SetDefault("ioc_hunting.enabled", true)              // Enable IOC hunting by default
+	viper.SetDefault("ioc_hunting.auto_hunt_on_add", true)     // Auto-hunt when new IOCs are added
+	viper.SetDefault("ioc_hunting.auto_hunt_lookback_hours", 24) // Look back 24 hours for auto-hunts
+	viper.SetDefault("ioc_hunting.max_concurrent_hunts", 3)    // Max 3 concurrent hunts
+	viper.SetDefault("ioc_hunting.default_batch_size", 1000)   // Process 1000 events per batch
+	viper.SetDefault("ioc_hunting.max_events_per_hunt", 1000000) // Max 1M events per hunt
 
 	// Field mappings defaults
 	viper.SetDefault("field_mappings.yaml_path", "config/field_mappings.yaml") // Default YAML path
@@ -706,6 +803,17 @@ func validateConfig(config *Config) error {
 		}
 		if l.host == "" {
 			return fmt.Errorf("invalid %s host: host cannot be empty", l.name)
+		}
+	}
+
+	// Validate legacy listener configuration
+	// If legacy listeners are enabled, at least one individual listener should be enabled
+	if config.Listeners.UseLegacyListeners {
+		atLeastOneEnabled := config.Listeners.Syslog.Enabled ||
+			config.Listeners.CEF.Enabled ||
+			config.Listeners.JSON.Enabled
+		if !atLeastOneEnabled {
+			return fmt.Errorf("use_legacy_listeners is enabled but no individual listeners are enabled - this would result in no event ingestion; either enable at least one listener or set use_legacy_listeners: false to use dynamic listeners")
 		}
 	}
 

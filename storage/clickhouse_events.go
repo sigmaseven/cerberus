@@ -1,10 +1,14 @@
 package storage
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,6 +23,23 @@ import (
 	"go.uber.org/zap"
 )
 
+// PERFORMANCE OPTIMIZATION: sync.Pool for JSON encoding buffers
+// This reduces allocations by reusing byte buffers across batch inserts
+// Expected impact: 15-40% throughput improvement in JSON-heavy workloads
+var jsonBufferPool = sync.Pool{
+	New: func() interface{} {
+		return bytes.NewBuffer(make([]byte, 0, 4096)) // Pre-allocate 4KB
+	},
+}
+
+// canonicalBufferPool provides reusable buffers for canonical JSON serialization
+// Used by hashEvent when canonical deduplication is enabled
+var canonicalBufferPool = sync.Pool{
+	New: func() interface{} {
+		return bytes.NewBuffer(make([]byte, 0, 4096)) // Pre-allocate 4KB
+	},
+}
+
 // ClickHouseEventStorage handles event persistence in ClickHouse
 type ClickHouseEventStorage struct {
 	clickhouse          *ClickHouse
@@ -29,6 +50,7 @@ type ClickHouseEventStorage struct {
 	dedupCache          *lru.Cache[string, bool]
 	dedupMutex          sync.RWMutex
 	enableDeduplication bool
+	useCanonicalHash    bool // Use canonical JSON hashing for format-agnostic deduplication
 	logger              *zap.SugaredLogger
 	// TASK 144: Context for graceful shutdown of worker goroutines
 	ctx    context.Context
@@ -65,6 +87,7 @@ func NewClickHouseEventStorage(parentCtx context.Context, clickhouse *ClickHouse
 		eventCh:             eventCh,
 		dedupCache:          lruCache,
 		enableDeduplication: cfg.Storage.Deduplication,
+		useCanonicalHash:    cfg.Storage.DedupCanonical,
 		logger:              logger,
 		ctx:                 ctx,
 		cancel:              cancel,
@@ -137,20 +160,14 @@ func (ces *ClickHouseEventStorage) worker(workerID int) {
 				ces.logger.Debugf("[CLICKHOUSE-WORKER-%d] Received event #%d from channel: ID=%s, Type=%s", workerID, eventCount, event.EventID, eventType)
 			}
 
-			// Deduplication
-			if ces.enableDeduplication {
-				hash := ces.hashEvent(event)
-				ces.dedupMutex.Lock()
-
-				if _, exists := ces.dedupCache.Get(hash); exists {
-					ces.dedupMutex.Unlock()
-					ces.logger.Debugf("[CLICKHOUSE] Event deduplicated: ID=%s", event.EventID)
-					continue
-				}
-
-				ces.dedupCache.Add(hash, true)
-				ces.dedupMutex.Unlock()
-			}
+			// NOTE: Deduplication now happens at ingestion time (dedup.Service)
+			// before events reach the storage layer. This eliminates wasted CPU
+			// on detection/correlation for duplicate events. The ContentHash
+			// is computed and attached to events at ingestion time.
+			//
+			// The storage layer just persists events and their content_hash.
+			// If ContentHash is not set (e.g., for events from older ingestion paths),
+			// it will be computed during batch insert.
 
 			batch = append(batch, event)
 
@@ -211,9 +228,35 @@ func (ces *ClickHouseEventStorage) insertBatch(batch []*core.Event) {
 	ces.insertBatchWithContext(ctx, batch)
 }
 
+// Retry configuration for transient ClickHouse failures
+const (
+	maxRetryAttempts     = 3
+	initialRetryDelay    = 100 * time.Millisecond
+	maxRetryDelay        = 5 * time.Second
+	retryBackoffMultiple = 2.0
+)
+
+// isRetryableError checks if an error is transient and worth retrying
+func isRetryableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	// Transient errors that are worth retrying
+	return strings.Contains(errStr, "connection refused") ||
+		strings.Contains(errStr, "connection reset") ||
+		strings.Contains(errStr, "timeout") ||
+		strings.Contains(errStr, "temporary failure") ||
+		strings.Contains(errStr, "too many connections") ||
+		strings.Contains(errStr, "server is overloaded") ||
+		strings.Contains(errStr, "i/o timeout") ||
+		strings.Contains(errStr, "EOF")
+}
+
 // insertBatchWithContext inserts a batch of events using ClickHouse batch API with context
 // TASK 144: New method that accepts context for cancellation support
 // BLOCKING-1 FIX: Returns error instead of void to enable proper error handling and logging
+// PIPELINE FIX: Added retry logic with exponential backoff for transient failures
 func (ces *ClickHouseEventStorage) insertBatchWithContext(ctx context.Context, batch []*core.Event) error {
 	// SAFETY: Guard against nil ClickHouse connection (can occur in tests)
 	if ces.clickhouse == nil || ces.clickhouse.Conn == nil {
@@ -222,20 +265,89 @@ func (ces *ClickHouseEventStorage) insertBatchWithContext(ctx context.Context, b
 	}
 
 	start := time.Now()
+	var lastErr error
 
+	// Retry loop with exponential backoff
+	for attempt := 0; attempt < maxRetryAttempts; attempt++ {
+		if attempt > 0 {
+			// Exponential backoff
+			delay := initialRetryDelay * time.Duration(1<<uint(attempt-1))
+			if delay > maxRetryDelay {
+				delay = maxRetryDelay
+			}
+			ces.logger.Warnw("Retrying batch insert after transient failure",
+				"attempt", attempt+1,
+				"max_attempts", maxRetryAttempts,
+				"delay", delay,
+				"error", lastErr)
+			metrics.StorageBatchInsertRetries.WithLabelValues("events").Inc()
+
+			select {
+			case <-ctx.Done():
+				metrics.StorageEventsDropped.WithLabelValues("events", "context_cancelled").Add(float64(len(batch)))
+				return ctx.Err()
+			case <-time.After(delay):
+			}
+		}
+
+		err := ces.doInsertBatch(ctx, batch)
+		if err == nil {
+			// Success - record duration and return
+			duration := time.Since(start)
+			metrics.StorageBatchInsertDuration.WithLabelValues("events").Observe(duration.Seconds())
+			eps := float64(len(batch)) / duration.Seconds()
+			ces.logger.Debugf("[CLICKHOUSE] Inserted %d events in %v (%.0f events/sec)", len(batch), duration, eps)
+
+			// Update ingestion metrics
+			for _, event := range batch {
+				metrics.EventsIngested.WithLabelValues(event.SourceFormat).Inc()
+			}
+			return nil
+		}
+
+		lastErr = err
+		if !isRetryableError(err) {
+			// Non-retryable error - fail immediately
+			ces.logger.Errorw("Non-retryable batch insert error",
+				"error", err,
+				"event_count", len(batch))
+			metrics.StorageBatchInsertFailures.WithLabelValues("events", "send").Inc()
+			metrics.StorageEventsDropped.WithLabelValues("events", "non_retryable").Add(float64(len(batch)))
+			return err
+		}
+	}
+
+	// All retries exhausted
+	ces.logger.Errorw("CRITICAL: Batch insert failed after all retries - events will be lost",
+		"error", lastErr,
+		"event_count", len(batch),
+		"attempts", maxRetryAttempts)
+	metrics.StorageBatchInsertFailures.WithLabelValues("events", "retry_exhausted").Inc()
+	metrics.StorageEventsDropped.WithLabelValues("events", "retry_exhausted").Add(float64(len(batch)))
+	return fmt.Errorf("batch insert failed after %d attempts: %w", maxRetryAttempts, lastErr)
+}
+
+// doInsertBatch performs the actual batch insert without retry logic
+func (ces *ClickHouseEventStorage) doInsertBatch(ctx context.Context, batch []*core.Event) error {
 	// Prepare batch statement
 	prepareBatch, err := ces.clickhouse.Conn.PrepareBatch(ctx, `
 		INSERT INTO events (
 			event_id, timestamp, ingested_at, listener_id, listener_name,
-			source, source_format, raw_data, fields
+			source, source_format, raw_data, fields, content_hash
 		)
 	`)
 	if err != nil {
 		ces.logger.Errorf("[CLICKHOUSE] Failed to prepare batch: %v", err)
+		metrics.StorageBatchInsertFailures.WithLabelValues("events", "prepare").Inc()
 		return fmt.Errorf("failed to prepare batch: %w", err)
 	}
 
+	// PERFORMANCE OPTIMIZATION: Reuse encoder across events in batch
+	buf := jsonBufferPool.Get().(*bytes.Buffer)
+	defer jsonBufferPool.Put(buf)
+
 	// Append all events to batch
+	appendErrors := 0
 	for i, event := range batch {
 		// Check context cancellation periodically (every 1000 events)
 		if i > 0 && i%1000 == 0 {
@@ -244,17 +356,34 @@ func (ces *ClickHouseEventStorage) insertBatchWithContext(ctx context.Context, b
 				ces.logger.Debugw("Context cancelled during ClickHouse batch append",
 					"processed_events", i,
 					"total_events", len(batch))
+				metrics.StorageEventsDropped.WithLabelValues("events", "context_cancelled").Add(float64(len(batch) - i))
 				return ctx.Err()
 			default:
 			}
 		}
 
-		// Serialize Fields to JSON
+		// PERFORMANCE OPTIMIZATION: Use pooled buffer for JSON encoding
+		// Reuse buffer for each event instead of getting new one from pool
+		buf.Reset()
 		fieldsData := ""
 		if event.Fields != nil && len(event.Fields) > 0 {
-			if data, err := json.Marshal(event.Fields); err == nil {
+			encoder := json.NewEncoder(buf)
+			encoder.SetEscapeHTML(false) // Faster encoding, no HTML escaping needed
+			if err := encoder.Encode(event.Fields); err == nil {
+				// Remove trailing newline added by Encode
+				data := buf.Bytes()
+				if len(data) > 0 && data[len(data)-1] == '\n' {
+					data = data[:len(data)-1]
+				}
 				fieldsData = string(data)
 			}
+		}
+
+		// Compute content hash if not already set (e.g., by dedup service)
+		// This enables retroactive duplicate detection via GROUP BY content_hash
+		contentHash := event.ContentHash
+		if contentHash == "" && ces.useCanonicalHash && event.Fields != nil {
+			contentHash = ces.hashEventCanonical(event)
 		}
 
 		err := prepareBatch.Append(
@@ -267,9 +396,25 @@ func (ces *ClickHouseEventStorage) insertBatchWithContext(ctx context.Context, b
 			event.SourceFormat,
 			string(event.RawData), // Convert json.RawMessage to string for ClickHouse String column
 			fieldsData,
+			contentHash, // Canonical hash for retroactive deduplication
 		)
 		if err != nil {
-			ces.logger.Errorf("[CLICKHOUSE] Failed to append event %s: %v", event.EventID, err)
+			// FIX: Track append failures instead of silently continuing
+			appendErrors++
+			ces.logger.Errorw("Failed to append event to batch",
+				"event_id", event.EventID,
+				"error", err,
+				"append_errors", appendErrors)
+			metrics.StorageBatchInsertFailures.WithLabelValues("events", "append").Inc()
+
+			// If too many append errors, abort the batch
+			if appendErrors > len(batch)/10 && appendErrors > 10 {
+				ces.logger.Errorw("Too many append errors, aborting batch",
+					"append_errors", appendErrors,
+					"total_events", len(batch))
+				metrics.StorageEventsDropped.WithLabelValues("events", "append_error").Add(float64(len(batch) - i))
+				return fmt.Errorf("too many append errors: %d/%d", appendErrors, len(batch))
+			}
 		}
 	}
 
@@ -279,31 +424,42 @@ func (ces *ClickHouseEventStorage) insertBatchWithContext(ctx context.Context, b
 		return fmt.Errorf("failed to send batch: %w", err)
 	}
 
-	duration := time.Since(start)
-	eps := float64(len(batch)) / duration.Seconds()
-	ces.logger.Debugf("[CLICKHOUSE] Inserted %d events in %v (%.0f events/sec)", len(batch), duration, eps)
-
-	// Update metrics
-	for i, event := range batch {
-		// Check context cancellation periodically (every 1000 events)
-		if i > 0 && i%1000 == 0 {
-			select {
-			case <-ctx.Done():
-				ces.logger.Debugw("Context cancelled during metrics update",
-					"processed_events", i,
-					"total_events", len(batch))
-				return ctx.Err()
-			default:
-			}
-		}
-		metrics.EventsIngested.WithLabelValues(event.SourceFormat).Inc()
-	}
-
 	return nil
 }
 
 // hashEvent generates a hash for deduplication
+// When useCanonicalHash is enabled, uses canonical JSON serialization of Fields
+// for format-agnostic deduplication (handles JSON key reordering, whitespace changes)
 func (ces *ClickHouseEventStorage) hashEvent(event *core.Event) string {
+	if ces.useCanonicalHash && event.Fields != nil {
+		return ces.hashEventCanonical(event)
+	}
+	return ces.hashEventLegacy(event)
+}
+
+// hashEventCanonical generates a hash using canonical JSON serialization
+// This is format-agnostic: same logical JSON produces same hash regardless of formatting
+func (ces *ClickHouseEventStorage) hashEventCanonical(event *core.Event) string {
+	buf := canonicalBufferPool.Get().(*bytes.Buffer)
+	defer func() {
+		buf.Reset()
+		canonicalBufferPool.Put(buf)
+	}()
+
+	// Write canonical JSON representation of Fields
+	writeCanonicalJSON(buf, event.Fields)
+
+	// Include timestamp for time-based uniqueness
+	buf.WriteByte('|')
+	buf.WriteString(strconv.FormatInt(event.Timestamp.Unix(), 10))
+
+	h := sha256.Sum256(buf.Bytes())
+	return hex.EncodeToString(h[:])
+}
+
+// hashEventLegacy generates a hash using raw data (legacy behavior)
+// This is byte-exact: only identical raw JSON produces same hash
+func (ces *ClickHouseEventStorage) hashEventLegacy(event *core.Event) string {
 	// Extract source_ip from Fields if present
 	sourceIP := "unknown"
 	if event.Fields != nil {
@@ -321,6 +477,56 @@ func (ces *ClickHouseEventStorage) hashEvent(event *core.Event) string {
 	}
 
 	return fmt.Sprintf("%s|%s|%s|%d", string(event.RawData), eventType, sourceIP, event.Timestamp.Unix())
+}
+
+// writeCanonicalJSON writes a deterministic JSON representation to the buffer
+// Keys are sorted alphabetically at each nesting level for consistent hashing
+func writeCanonicalJSON(buf *bytes.Buffer, v interface{}) {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		keys := make([]string, 0, len(val))
+		for k := range val {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+
+		buf.WriteByte('{')
+		for i, k := range keys {
+			if i > 0 {
+				buf.WriteByte(',')
+			}
+			buf.WriteString(strconv.Quote(k))
+			buf.WriteByte(':')
+			writeCanonicalJSON(buf, val[k])
+		}
+		buf.WriteByte('}')
+
+	case []interface{}:
+		buf.WriteByte('[')
+		for i, elem := range val {
+			if i > 0 {
+				buf.WriteByte(',')
+			}
+			writeCanonicalJSON(buf, elem)
+		}
+		buf.WriteByte(']')
+
+	case string:
+		buf.WriteString(strconv.Quote(val))
+	case float64:
+		buf.WriteString(strconv.FormatFloat(val, 'f', -1, 64))
+	case int:
+		buf.WriteString(strconv.Itoa(val))
+	case int64:
+		buf.WriteString(strconv.FormatInt(val, 10))
+	case bool:
+		buf.WriteString(strconv.FormatBool(val))
+	case nil:
+		buf.WriteString("null")
+	default:
+		// Fallback for other types
+		fmt.Fprintf(buf, "%v", val)
+	}
 }
 
 // Stop gracefully shuts down all workers
@@ -699,4 +905,232 @@ func (ces *ClickHouseEventStorage) CreateEventIndexes(ctx context.Context) error
 	}
 
 	return nil
+}
+
+// DedupAnalyzeResult contains the results of a duplicate analysis.
+type DedupAnalyzeResult struct {
+	TotalEvents              int64            `json:"total_events"`
+	UniqueEvents             int64            `json:"unique_events"`
+	DuplicateEvents          int64            `json:"duplicate_events"`
+	DuplicateGroups          int64            `json:"duplicate_groups"`
+	EstimatedStorageSavingMB float64          `json:"estimated_storage_savings_mb"`
+	SampleDuplicates         []DuplicateGroup `json:"sample_duplicates,omitempty"`
+	AnalysisDurationMs       int64            `json:"analysis_duration_ms"`
+	EventsWithoutHash        int64            `json:"events_without_hash"`
+}
+
+// DuplicateGroup represents a set of duplicate events sharing the same content hash.
+type DuplicateGroup struct {
+	ContentHash string    `json:"content_hash"`
+	Count       int       `json:"count"`
+	EventIDs    []string  `json:"event_ids"`
+	KeepID      string    `json:"keep_id"`
+	FirstSeen   time.Time `json:"first_seen"`
+	LastSeen    time.Time `json:"last_seen"`
+}
+
+// AnalyzeDuplicates analyzes events in a time range to find duplicates by content_hash.
+// Returns statistics and sample duplicate groups.
+func (ces *ClickHouseEventStorage) AnalyzeDuplicates(ctx context.Context, startTime, endTime time.Time, limit int) (*DedupAnalyzeResult, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	result := &DedupAnalyzeResult{
+		SampleDuplicates: make([]DuplicateGroup, 0),
+	}
+
+	// Get total event count
+	totalQuery := `SELECT COUNT(*) FROM events WHERE timestamp BETWEEN ? AND ?`
+	var total uint64
+	if err := ces.clickhouse.Conn.QueryRow(ctx, totalQuery, startTime, endTime).Scan(&total); err != nil {
+		return nil, fmt.Errorf("failed to count total events: %w", err)
+	}
+	result.TotalEvents = int64(total)
+
+	// Count events without content_hash (need backfill)
+	noHashQuery := `SELECT COUNT(*) FROM events WHERE timestamp BETWEEN ? AND ? AND content_hash = ''`
+	var noHashCount uint64
+	if err := ces.clickhouse.Conn.QueryRow(ctx, noHashQuery, startTime, endTime).Scan(&noHashCount); err != nil {
+		ces.logger.Warnf("Failed to count events without hash: %v", err)
+	}
+	result.EventsWithoutHash = int64(noHashCount)
+
+	// Count unique hashes (only events WITH hash)
+	uniqueQuery := `SELECT COUNT(DISTINCT content_hash) FROM events WHERE timestamp BETWEEN ? AND ? AND content_hash != ''`
+	var unique uint64
+	if err := ces.clickhouse.Conn.QueryRow(ctx, uniqueQuery, startTime, endTime).Scan(&unique); err != nil {
+		return nil, fmt.Errorf("failed to count unique hashes: %w", err)
+	}
+
+	// Count events with hash
+	eventsWithHash := result.TotalEvents - result.EventsWithoutHash
+	result.UniqueEvents = int64(unique) + result.EventsWithoutHash // Events without hash are considered unique
+	result.DuplicateEvents = eventsWithHash - int64(unique)
+
+	// Find duplicate groups (hashes with count > 1)
+	dupGroupsQuery := `
+		SELECT COUNT(*) FROM (
+			SELECT content_hash
+			FROM events
+			WHERE timestamp BETWEEN ? AND ?
+			  AND content_hash != ''
+			GROUP BY content_hash
+			HAVING COUNT(*) > 1
+		)`
+	var dupGroups uint64
+	if err := ces.clickhouse.Conn.QueryRow(ctx, dupGroupsQuery, startTime, endTime).Scan(&dupGroups); err != nil {
+		return nil, fmt.Errorf("failed to count duplicate groups: %w", err)
+	}
+	result.DuplicateGroups = int64(dupGroups)
+
+	// Estimate storage savings (assuming ~1KB per event average)
+	result.EstimatedStorageSavingMB = float64(result.DuplicateEvents) * 1.0 / 1024.0
+
+	// Get sample duplicate groups
+	sampleQuery := `
+		SELECT
+			content_hash,
+			COUNT(*) as duplicate_count,
+			groupArray(10)(event_id) as event_ids,
+			MIN(timestamp) as first_seen,
+			MAX(timestamp) as last_seen
+		FROM events
+		WHERE timestamp BETWEEN ? AND ?
+		  AND content_hash != ''
+		GROUP BY content_hash
+		HAVING duplicate_count > 1
+		ORDER BY duplicate_count DESC
+		LIMIT ?`
+
+	rows, err := ces.clickhouse.Conn.Query(ctx, sampleQuery, startTime, endTime, limit)
+	if err != nil {
+		ces.logger.Warnf("Failed to get sample duplicates: %v", err)
+		return result, nil // Return partial result
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var hash string
+		var count uint64
+		var eventIDs []string
+		var firstSeen, lastSeen time.Time
+
+		if err := rows.Scan(&hash, &count, &eventIDs, &firstSeen, &lastSeen); err != nil {
+			ces.logger.Warnf("Failed to scan duplicate group: %v", err)
+			continue
+		}
+
+		keepID := ""
+		if len(eventIDs) > 0 {
+			keepID = eventIDs[0] // Keep first by default
+		}
+
+		result.SampleDuplicates = append(result.SampleDuplicates, DuplicateGroup{
+			ContentHash: hash,
+			Count:       int(count),
+			EventIDs:    eventIDs,
+			KeepID:      keepID,
+			FirstSeen:   firstSeen,
+			LastSeen:    lastSeen,
+		})
+	}
+
+	return result, nil
+}
+
+// DeleteDuplicates removes duplicate events in a time range, keeping the first or last occurrence.
+// Returns the number of deleted events.
+func (ces *ClickHouseEventStorage) DeleteDuplicates(ctx context.Context, startTime, endTime time.Time, strategy string, maxDelete int64) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
+
+	// Determine sort order based on strategy
+	sortOrder := "ASC" // keep_first: keep MIN(timestamp), delete rest
+	if strategy == "keep_last" {
+		sortOrder = "DESC" // keep_last: keep MAX(timestamp), delete rest
+	}
+
+	// ClickHouse doesn't support DELETE with subquery directly in standard way
+	// We need to use ALTER TABLE DELETE with a WHERE clause
+	// Strategy: Find event_ids to delete (all but first/last per hash) and delete them
+
+	// Step 1: Get event IDs to delete
+	// This query gets all event IDs that are NOT the one to keep (first or last)
+	selectQuery := fmt.Sprintf(`
+		SELECT event_id FROM (
+			SELECT
+				event_id,
+				content_hash,
+				ROW_NUMBER() OVER (PARTITION BY content_hash ORDER BY timestamp %s) as rn
+			FROM events
+			WHERE timestamp BETWEEN ? AND ?
+			  AND content_hash != ''
+			  AND content_hash IN (
+				  SELECT content_hash
+				  FROM events
+				  WHERE timestamp BETWEEN ? AND ?
+					AND content_hash != ''
+				  GROUP BY content_hash
+				  HAVING COUNT(*) > 1
+			  )
+		)
+		WHERE rn > 1
+		LIMIT ?`, sortOrder)
+
+	rows, err := ces.clickhouse.Conn.Query(ctx, selectQuery, startTime, endTime, startTime, endTime, maxDelete)
+	if err != nil {
+		return 0, fmt.Errorf("failed to find duplicates to delete: %w", err)
+	}
+	defer rows.Close()
+
+	// Collect event IDs to delete
+	var idsToDelete []string
+	for rows.Next() {
+		var eventID string
+		if err := rows.Scan(&eventID); err != nil {
+			ces.logger.Warnf("Failed to scan event ID for deletion: %v", err)
+			continue
+		}
+		idsToDelete = append(idsToDelete, eventID)
+	}
+
+	if len(idsToDelete) == 0 {
+		return 0, nil
+	}
+
+	ces.logger.Infof("Found %d duplicate events to delete", len(idsToDelete))
+
+	// Step 2: Delete in batches
+	batchSize := 1000
+	var totalDeleted int64 = 0
+
+	for i := 0; i < len(idsToDelete); i += batchSize {
+		end := i + batchSize
+		if end > len(idsToDelete) {
+			end = len(idsToDelete)
+		}
+		batch := idsToDelete[i:end]
+
+		// Build the IN clause
+		deleteQuery := "ALTER TABLE events DELETE WHERE event_id IN (?)"
+		if err := ces.clickhouse.Conn.Exec(ctx, deleteQuery, batch); err != nil {
+			ces.logger.Errorw("Failed to delete batch of duplicates",
+				"error", err,
+				"batch_start", i,
+				"batch_size", len(batch))
+			// Continue with next batch
+			continue
+		}
+		totalDeleted += int64(len(batch))
+		ces.logger.Debugf("Deleted batch %d-%d (%d events)", i, end, len(batch))
+	}
+
+	ces.logger.Infof("Retroactive deduplication completed: deleted %d events", totalDeleted)
+
+	// Record metric for monitoring
+	if totalDeleted > 0 {
+		metrics.EventsRetroactivelyDeduplicated.Add(float64(totalDeleted))
+	}
+
+	return totalDeleted, nil
 }

@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -12,6 +13,7 @@ import (
 
 	"cerberus/config"
 	"cerberus/core"
+	"cerberus/metrics"
 	"cerberus/util/goroutine"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -37,25 +39,43 @@ type ClickHouseAlertStorage struct {
 // NewClickHouseAlertStorage creates a new ClickHouse alert storage handler
 // TASK 144: Accepts parent context for graceful shutdown propagation
 // BLOCKING-2 FIX: Accepts parent context parameter for proper context propagation
+// PIPELINE FIX: Uses configurable AlertBatchSize and AlertFlushInterval
 func NewClickHouseAlertStorage(parentCtx context.Context, clickhouse *ClickHouse, cfg *config.Config, alertCh <-chan *core.Alert, logger *zap.SugaredLogger) (*ClickHouseAlertStorage, error) {
 	lruCache, err := lru.New[string, bool](1000)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create alert dedup cache: %w", err)
 	}
 
-	batchSize := cfg.ClickHouse.BatchSize / 10 // Alerts are less frequent than events
-	if batchSize < 100 {
-		batchSize = 100
+	// PIPELINE FIX: Use explicit AlertBatchSize config if set, otherwise calculate from BatchSize
+	batchSize := cfg.ClickHouse.AlertBatchSize
+	if batchSize <= 0 {
+		// Fallback to legacy heuristic
+		batchSize = cfg.ClickHouse.BatchSize / 10
+		if batchSize < 100 {
+			batchSize = 100
+		}
+	}
+
+	// PIPELINE FIX: Use explicit AlertFlushInterval if set, otherwise use default
+	flushInterval := 5 * time.Second
+	if cfg.ClickHouse.AlertFlushInterval > 0 {
+		flushInterval = time.Duration(cfg.ClickHouse.AlertFlushInterval) * time.Second
+	} else if cfg.ClickHouse.FlushInterval > 0 {
+		flushInterval = time.Duration(cfg.ClickHouse.FlushInterval) * time.Second
 	}
 
 	// TASK 144: Create cancellable context for worker lifecycle management
 	// BLOCKING-2 FIX: Derive worker context from parent context for proper cancellation propagation
 	ctx, cancel := context.WithCancel(parentCtx)
 
+	logger.Infow("Initialized ClickHouse alert storage",
+		"batch_size", batchSize,
+		"flush_interval", flushInterval)
+
 	return &ClickHouseAlertStorage{
 		clickhouse:          clickhouse,
 		batchSize:           batchSize,
-		batchFlushInterval:  5 * time.Second,
+		batchFlushInterval:  flushInterval,
 		alertCh:             alertCh,
 		dedupCache:          lruCache,
 		enableDeduplication: true,
@@ -102,6 +122,21 @@ func (cas *ClickHouseAlertStorage) worker() {
 					cancel()
 				}
 				return
+			}
+
+			// DEDUPLICATION: Check if this alert fingerprint was recently seen
+			// This prevents duplicate alerts from the same underlying event
+			if cas.enableDeduplication && alert.Fingerprint != "" {
+				if _, exists := cas.dedupCache.Get(alert.Fingerprint); exists {
+					cas.logger.Debugw("Skipping duplicate alert",
+						"alert_id", alert.AlertID,
+						"fingerprint", alert.Fingerprint[:16]+"...",
+						"rule_id", alert.RuleID)
+					metrics.AlertsDeduplicated.Inc()
+					continue // Skip this alert, don't add to batch
+				}
+				// Add fingerprint to cache (will be evicted based on LRU policy)
+				cas.dedupCache.Add(alert.Fingerprint, true)
 			}
 
 			batch = append(batch, alert)
@@ -223,20 +258,39 @@ func (cas *ClickHouseAlertStorage) insertBatch(ctx context.Context, alerts []*co
 			}
 		}
 
+		// PERFORMANCE OPTIMIZATION: Use pooled buffer for JSON encoding
 		// Serialize Event to JSON
 		eventData := ""
 		if alert.Event != nil {
-			if data, err := json.Marshal(alert.Event); err == nil {
+			buf := jsonBufferPool.Get().(*bytes.Buffer)
+			buf.Reset()
+			encoder := json.NewEncoder(buf)
+			encoder.SetEscapeHTML(false)
+			if err := encoder.Encode(alert.Event); err == nil {
+				data := buf.Bytes()
+				if len(data) > 0 && data[len(data)-1] == '\n' {
+					data = data[:len(data)-1]
+				}
 				eventData = string(data)
 			}
+			jsonBufferPool.Put(buf)
 		}
 
 		// Serialize ThreatIntel to JSON
 		threatIntelData := ""
 		if alert.ThreatIntel != nil && len(alert.ThreatIntel) > 0 {
-			if data, err := json.Marshal(alert.ThreatIntel); err == nil {
+			buf := jsonBufferPool.Get().(*bytes.Buffer)
+			buf.Reset()
+			encoder := json.NewEncoder(buf)
+			encoder.SetEscapeHTML(false)
+			if err := encoder.Encode(alert.ThreatIntel); err == nil {
+				data := buf.Bytes()
+				if len(data) > 0 && data[len(data)-1] == '\n' {
+					data = data[:len(data)-1]
+				}
 				threatIntelData = string(data)
 			}
+			jsonBufferPool.Put(buf)
 		}
 
 		// Handle empty arrays
@@ -255,9 +309,18 @@ func (cas *ClickHouseAlertStorage) insertBatch(ctx context.Context, alerts []*co
 		// Serialize CorrelatedAlertIDs to JSON array
 		correlatedAlertIDsJSON := "[]"
 		if alert.CorrelatedAlertIDs != nil && len(alert.CorrelatedAlertIDs) > 0 {
-			if data, err := json.Marshal(alert.CorrelatedAlertIDs); err == nil {
+			buf := jsonBufferPool.Get().(*bytes.Buffer)
+			buf.Reset()
+			encoder := json.NewEncoder(buf)
+			encoder.SetEscapeHTML(false)
+			if err := encoder.Encode(alert.CorrelatedAlertIDs); err == nil {
+				data := buf.Bytes()
+				if len(data) > 0 && data[len(data)-1] == '\n' {
+					data = data[:len(data)-1]
+				}
 				correlatedAlertIDsJSON = string(data)
 			}
+			jsonBufferPool.Put(buf)
 		}
 
 		// Default rule_type to 'sigma' if empty
@@ -293,20 +356,20 @@ func (cas *ClickHouseAlertStorage) insertBatch(ctx context.Context, alerts []*co
 			alert.AssignedTo,
 			eventData,
 			threatIntelData,
-			dispositionStr,           // disposition from alert
-			alert.DispositionReason,  // disposition_reason from alert
-			alert.DispositionSetAt,   // disposition_set_at from alert (nullable)
-			alert.DispositionSetBy,   // disposition_set_by from alert
-			alert.InvestigationID,    // investigation_id from alert
-			ruleType,                 // rule_type (sigma, correlation, cql, ml)
-			correlatedAlertIDsJSON,   // correlated_alert_ids (JSON array of contributing alert IDs)
-			alert.CorrelationRuleID,  // correlation_rule_id (for contributing alerts)
-			alert.Category,           // category (alert classification)
-			alert.Source,             // source (system that generated alert)
-			alert.ConfidenceScore,    // confidence_score (0-100)
-			uint8(alert.RiskScore),   // risk_score (0-100, cast to UInt8)
-			uint32(occurrenceCount),  // occurrence_count
-			slaBreached,              // sla_breached (0 or 1)
+			dispositionStr,          // disposition from alert
+			alert.DispositionReason, // disposition_reason from alert
+			alert.DispositionSetAt,  // disposition_set_at from alert (nullable)
+			alert.DispositionSetBy,  // disposition_set_by from alert
+			alert.InvestigationID,   // investigation_id from alert
+			ruleType,                // rule_type (sigma, correlation, cql, ml)
+			correlatedAlertIDsJSON,  // correlated_alert_ids (JSON array of contributing alert IDs)
+			alert.CorrelationRuleID, // correlation_rule_id (for contributing alerts)
+			alert.Category,          // category (alert classification)
+			alert.Source,            // source (system that generated alert)
+			alert.ConfidenceScore,   // confidence_score (0-100)
+			uint8(alert.RiskScore),  // risk_score (0-100, cast to UInt8)
+			uint32(occurrenceCount), // occurrence_count
+			slaBreached,             // sla_breached (0 or 1)
 		)
 		if err != nil {
 			cas.logger.Errorf("Failed to append alert %s: %v", alert.AlertID, err)

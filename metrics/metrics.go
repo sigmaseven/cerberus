@@ -22,6 +22,32 @@ var (
 		[]string{"severity"},
 	)
 
+	AlertsDeduplicated = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "cerberus_alerts_deduplicated_total",
+			Help: "Total number of duplicate alerts skipped",
+		},
+	)
+
+	// EventsDeduplicated tracks duplicate events skipped at ingestion layer
+	// OBSERVABILITY: Monitor deduplication effectiveness and storage savings
+	// NOTE: Dedup now happens at ingestion time (before detection) for CPU savings
+	EventsDeduplicated = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "cerberus_events_deduplicated_total",
+			Help: "Total number of duplicate events skipped at ingestion",
+		},
+	)
+
+	// EventsRetroactivelyDeduplicated tracks events deleted by retroactive deduplication
+	// OBSERVABILITY: Monitor cleanup of historical duplicates via maintenance API
+	EventsRetroactivelyDeduplicated = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "cerberus_events_retroactively_deduplicated_total",
+			Help: "Total number of events deleted by retroactive deduplication",
+		},
+	)
+
 	ActionsExecuted = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "cerberus_actions_executed_total",
@@ -453,5 +479,64 @@ var (
 			Help: "Total number of user-reported false positives",
 		},
 		[]string{"rule_id"},
+	)
+
+	// PIPELINE BOTTLENECK FIX: Storage layer metrics for visibility
+	// These metrics enable monitoring of batch insert performance and failures
+
+	// StorageBatchInsertDuration tracks time taken for batch inserts
+	// Labels: storage_type (events|alerts)
+	// OBSERVABILITY: Monitor ClickHouse insert latency
+	StorageBatchInsertDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "cerberus_storage_batch_insert_duration_seconds",
+			Help:    "Time taken for batch inserts to ClickHouse",
+			Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0},
+		},
+		[]string{"storage_type"},
+	)
+
+	// StorageBatchInsertFailures tracks failed batch insert attempts
+	// Labels: storage_type (events|alerts), error_type (prepare|append|send|retry_exhausted)
+	// OBSERVABILITY: Monitor data loss risk and ClickHouse health
+	StorageBatchInsertFailures = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cerberus_storage_batch_insert_failures_total",
+			Help: "Total number of failed batch insert attempts",
+		},
+		[]string{"storage_type", "error_type"},
+	)
+
+	// StorageBatchInsertRetries tracks retry attempts for transient failures
+	// Labels: storage_type (events|alerts)
+	// OBSERVABILITY: Monitor ClickHouse stability and retry effectiveness
+	StorageBatchInsertRetries = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cerberus_storage_batch_insert_retries_total",
+			Help: "Total number of batch insert retry attempts",
+		},
+		[]string{"storage_type"},
+	)
+
+	// StorageEventsDropped tracks events dropped due to unrecoverable errors
+	// Labels: storage_type (events|alerts), reason (append_error|retry_exhausted|context_cancelled)
+	// OBSERVABILITY: Critical metric for data loss monitoring
+	StorageEventsDropped = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cerberus_storage_events_dropped_total",
+			Help: "Total number of events dropped due to unrecoverable errors",
+		},
+		[]string{"storage_type", "reason"},
+	)
+
+	// StorageWorkerQueueDepth tracks pending events per worker
+	// Labels: storage_type (events|alerts), worker_id
+	// OBSERVABILITY: Monitor backpressure and worker utilization
+	StorageWorkerQueueDepth = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "cerberus_storage_worker_queue_depth",
+			Help: "Number of events pending in worker batch buffer",
+		},
+		[]string{"storage_type", "worker_id"},
 	)
 )

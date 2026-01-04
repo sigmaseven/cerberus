@@ -17,22 +17,26 @@ import (
 
 // StorageComponents holds all storage-related components.
 type StorageComponents struct {
-	ClickHouse             *storage.ClickHouse
-	SQLite                 *storage.SQLite
-	EventStorage           *storage.ClickHouseEventStorage
-	AlertStorage           *storage.ClickHouseAlertStorage
-	RuleStorage            storage.RuleStorageInterface
-	ActionStorage          storage.ActionStorageInterface
-	CorrelationRuleStorage storage.CorrelationRuleStorageInterface
-	InvestigationStorage   api.InvestigationStorer
-	UserStorage            storage.UserStorage
-	RoleStorage            storage.RoleStorage
-	FieldMappingStorage    storage.FieldMappingStorage
-	LifecycleAuditStorage       *storage.SQLiteLifecycleAuditStorage       // TASK 169: Lifecycle audit trail storage
-	LifecycleManager            *storage.LifecycleManager                  // TASK 169: Lifecycle automation manager
-	FieldMappingAuditStorage    *storage.SQLiteFieldMappingAuditStorage    // TASK 185: Field mapping lifecycle audit trail storage
-	IOCStorage                  core.IOCStorage                            // IOC lifecycle management storage
-	IOCFeedStorage              threatfeeds.IOCFeedStorage                 // IOC feed metadata storage
+	ClickHouse               *storage.ClickHouse
+	SQLite                   *storage.SQLite
+	EventStorage             *storage.ClickHouseEventStorage
+	AlertStorage             *storage.ClickHouseAlertStorage
+	RuleStorage              storage.RuleStorageInterface
+	ActionStorage            storage.ActionStorageInterface
+	CorrelationRuleStorage   storage.CorrelationRuleStorageInterface
+	InvestigationStorage     api.InvestigationStorer
+	UserStorage              storage.UserStorage
+	RoleStorage              storage.RoleStorage
+	FieldMappingStorage      storage.FieldMappingStorage
+	LifecycleAuditStorage    *storage.SQLiteLifecycleAuditStorage    // TASK 169: Lifecycle audit trail storage
+	LifecycleManager         *storage.LifecycleManager               // TASK 169: Lifecycle automation manager
+	FieldMappingAuditStorage *storage.SQLiteFieldMappingAuditStorage // TASK 185: Field mapping lifecycle audit trail storage
+	IOCStorage               core.IOCStorage                         // IOC lifecycle management storage
+	IOCFeedStorage           threatfeeds.IOCFeedStorage              // IOC feed metadata storage
+	VisualMetadataStorage    storage.VisualMetadataStorage           // Visual Correlation Builder metadata storage
+	RuleVersionStorage       *storage.RuleVersionStorage             // PHASE 6: Rule version history storage
+	CorrelationAuditStorage  *storage.SQLiteCorrelationAuditStorage  // TASK 217: Correlation audit trail storage
+	LookupTableStorage       storage.LookupTableStorage              // TASK 204: Lookup table CRUD storage
 }
 
 // InitClickHouse initializes ClickHouse connection with retry logic.
@@ -132,8 +136,15 @@ func InitStorageWorkers(ctx context.Context, clickhouse *storage.ClickHouse, sql
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize ClickHouse alert storage: %w", err)
 	}
-	alertStorage.Start(cfg.Engine.WorkerCount)
-	sugar.Info("ClickHouse alert storage initialized successfully")
+
+	// PIPELINE FIX: Use separate AlertWorkerCount if configured
+	alertWorkerCount := cfg.ClickHouse.AlertWorkerCount
+	if alertWorkerCount <= 0 {
+		alertWorkerCount = cfg.Engine.WorkerCount // Fallback to event worker count
+	}
+	alertStorage.Start(alertWorkerCount)
+	sugar.Infow("ClickHouse alert storage initialized successfully",
+		"worker_count", alertWorkerCount)
 
 	// Initialize SQLite-based metadata storage
 	if sqlite == nil {
@@ -160,6 +171,17 @@ func InitStorageWorkers(ctx context.Context, clickhouse *storage.ClickHouse, sql
 		return nil, fmt.Errorf("failed to ensure correlation rule indexes: %w", err)
 	}
 	sugar.Info("Correlation rule storage initialized successfully")
+
+	// Visual Correlation Builder migration - adds config, enabled, type columns
+	// GATEKEEPER: Idempotent migration using columnExists check via pragma_table_info
+	// Migration is FATAL on error because:
+	// 1. addColumnIfNotExists is idempotent - it only fails on real errors (disk full, locked, permissions)
+	// 2. If config/enabled/type columns don't exist, activation endpoints will fail with SQL errors
+	// 3. Better to fail-fast during startup than serve broken requests
+	if err := sqlite.MigrateVisualBuilder(); err != nil {
+		return nil, fmt.Errorf("visual builder migration failed (required for correlation activation): %w", err)
+	}
+	sugar.Info("Visual builder schema migration completed successfully")
 
 	// Investigation storage
 	investigationStorage, err := storage.NewSQLiteInvestigationStorage(sqlite, sugar)
@@ -194,6 +216,14 @@ func InitStorageWorkers(ctx context.Context, clickhouse *storage.ClickHouse, sql
 			sugar.Warnf("Failed to initialize field mapping storage: %v", err)
 		} else {
 			sugar.Info("Field mapping storage initialized successfully")
+
+			// TASK 248: Load built-in field mappings from JSON files
+			// This loads mappings from configs/builtin_field_mappings/*.json with SHA256 integrity checking
+			if err := fieldMappingStorage.LoadBuiltInMappings("configs/builtin_field_mappings"); err != nil {
+				sugar.Warnf("Failed to load built-in field mappings: %v", err)
+			} else {
+				sugar.Info("Built-in field mappings loaded successfully")
+			}
 		}
 	}
 
@@ -224,22 +254,45 @@ func InitStorageWorkers(ctx context.Context, clickhouse *storage.ClickHouse, sql
 	}
 	sugar.Info("IOC feed storage initialized successfully")
 
+	// Visual metadata storage for Visual Correlation Builder graph state
+	visualMetadataStorage := storage.NewSQLiteVisualMetadataStorage(sqlite, sugar)
+	sugar.Info("Visual metadata storage initialized successfully")
+
+	// PHASE 6: Rule version storage for audit history
+	ruleVersionStorage := storage.NewRuleVersionStorage(sqlite, sugar)
+	if err := ruleVersionStorage.EnsureTable(); err != nil {
+		return nil, fmt.Errorf("failed to initialize rule version storage: %w", err)
+	}
+	sugar.Info("Rule version storage initialized successfully")
+
+	// TASK 217: Correlation audit storage for audit trail
+	correlationAuditStorage := storage.NewSQLiteCorrelationAuditStorage(sqlite, sugar)
+	sugar.Info("Correlation audit storage initialized successfully")
+
+	// TASK 204: Lookup table storage for custom enrichment tables
+	lookupTableStorage := storage.NewSQLiteLookupTableStorage(sqlite, sugar)
+	sugar.Info("Lookup table storage initialized successfully")
+
 	return &StorageComponents{
-		ClickHouse:             clickhouse,
-		SQLite:                 sqlite,
-		EventStorage:           eventStorage,
-		AlertStorage:           alertStorage,
-		RuleStorage:            ruleStorage,
-		ActionStorage:          actionStorage,
-		CorrelationRuleStorage: correlationRuleStorage,
-		InvestigationStorage:   investigationStorage,
-		UserStorage:            userStorage,
-		RoleStorage:            roleStorage,
+		ClickHouse:               clickhouse,
+		SQLite:                   sqlite,
+		EventStorage:             eventStorage,
+		AlertStorage:             alertStorage,
+		RuleStorage:              ruleStorage,
+		ActionStorage:            actionStorage,
+		CorrelationRuleStorage:   correlationRuleStorage,
+		InvestigationStorage:     investigationStorage,
+		UserStorage:              userStorage,
+		RoleStorage:              roleStorage,
 		FieldMappingStorage:      fieldMappingStorage,
 		LifecycleAuditStorage:    lifecycleAuditStorage,    // TASK 169
 		LifecycleManager:         lifecycleManager,         // TASK 169
 		FieldMappingAuditStorage: fieldMappingAuditStorage, // TASK 185
 		IOCStorage:               iocStorage,               // IOC lifecycle management
 		IOCFeedStorage:           iocFeedStorage,           // IOC feed metadata
+		VisualMetadataStorage:    visualMetadataStorage,    // Visual Correlation Builder
+		RuleVersionStorage:       ruleVersionStorage,       // PHASE 6: Rule version history
+		CorrelationAuditStorage:  correlationAuditStorage,  // TASK 217: Correlation audit trail
+		LookupTableStorage:       lookupTableStorage,       // TASK 204: Lookup table CRUD
 	}, nil
 }
